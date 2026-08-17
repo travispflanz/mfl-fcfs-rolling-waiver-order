@@ -47,9 +47,16 @@ they're already correct by the time the automation can possibly run
 
 2. Click **Use this template** — green button, top-right above the file
    list on this page — then **Create a new repository**. Give it any
-   name, pick Public or Private, click **Create repository**. You now
-   have your own independent copy; nothing you do in it ever touches
-   this original repo.
+   name, and pick **Private** — your `MFL_USERNAME`/`MFL_PASSWORD`
+   secrets themselves stay hidden either way, but a Public repo's Actions
+   run logs are visible to literally anyone on the internet, not just
+   you, so Private is the safer default. (One tradeoff: Public repos get
+   unlimited free Actions minutes, Private ones get a limited free
+   allowance and then draw from your account's paid minutes — checking
+   every 5 minutes adds up to roughly 3,600 minutes/month. Worth knowing
+   if that tips your choice.) Click **Create repository**. You now have
+   your own independent copy; nothing you do in it ever touches this
+   original repo.
 
 3. In your new repo, click the **Settings** tab (top row of the repo
    page, after Code / Issues / Pull requests / Actions). In the left
