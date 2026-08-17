@@ -118,6 +118,11 @@ async function main() {
 
   try {
     await login(page);
+
+    log('Navigating to league home page to establish commissioner mode:', `${BASE}/home/${LEAGUE}`);
+    await page.goto(`${BASE}/home/${LEAGUE}`, { waitUntil: 'domcontentloaded' });
+    await activateCommissionerModeIfNeeded(page);
+
     const franchises = await getFranchiseNames(page).catch((err) => {
       log('Warning: could not fetch franchise names (non-fatal):', err.message);
       return {};
@@ -178,22 +183,21 @@ async function login(page) {
     );
   }
   log('Login OK. Landed on:', page.url());
-
-  await activateCommissionerModeIfNeeded(page);
 }
 
-// MFL's nav shows a "BECOME COMMISSIONER" link even for an account that
-// *is* the commissioner — being authenticated and "acting as commissioner"
-// appear to be two separate session states (this matches an earlier,
-// previously-unconfirmed hypothesis that MFL_IS_COMMISH is set by a
-// distinct action, not by login alone). If present, follow it before
-// touching any commissioner-only page.
+// MFL treats "authenticated" and "acting as commissioner for this league"
+// as two separate session states — confirmed live: the account's own
+// login is not enough on its own, but a league-scoped "Become
+// Commissioner" link (href pattern: logout?L={league}&BECOME=0000) is
+// present on league pages and switches the session into commissioner
+// mode. Must be done on a page with league context (?L={league}) — it
+// is NOT present on the generic post-login landing page.
 async function activateCommissionerModeIfNeeded(page) {
   const link = page.locator('a', { hasText: /become\s+commissioner/i }).first();
   const count = await link.count();
   if (!count) {
-    log('No "Become Commissioner" link found on the post-login page — proceeding as-is.');
-    return;
+    log('No "Become Commissioner" link found on this page — assuming already in commissioner mode.');
+    return false;
   }
   const href = await link.getAttribute('href');
   log(`Found "Become Commissioner" link (href="${href}"). Following it.`);
@@ -202,6 +206,7 @@ async function activateCommissionerModeIfNeeded(page) {
     link.click(),
   ]);
   log('After following "Become Commissioner":', page.url(), '—', await page.title());
+  return true;
 }
 
 async function getFranchiseNames(page) {
@@ -223,18 +228,34 @@ async function getFranchiseNames(page) {
   return names;
 }
 
-async function readWaiverSetupPage(page) {
-  const url = `${BASE}/csetup?L=${LEAGUE}&C=WAIVORD`;
-  log('Navigating to waiver setup page:', url);
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
-
-  const fields = await page.evaluate(() => {
+async function readHiddenFields(page) {
+  return page.evaluate(() => {
     const out = {};
     document.querySelectorAll('input[type="hidden"]').forEach((el) => {
       if (el.name) out[el.name] = el.value;
     });
     return out;
   });
+}
+
+async function readWaiverSetupPage(page) {
+  const url = `${BASE}/csetup?L=${LEAGUE}&C=WAIVORD`;
+  log('Navigating to waiver setup page:', url);
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+  let fields = await readHiddenFields(page);
+
+  if (!fields.input_expires) {
+    // Fallback: commissioner mode wasn't picked up on the league home page
+    // for some reason — try activating it directly from this page (it was
+    // observed to be present here too) and reload once before giving up.
+    log('input_expires missing on first load — checking for a "Become Commissioner" link on this page.');
+    const followed = await activateCommissionerModeIfNeeded(page);
+    if (followed) {
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      fields = await readHiddenFields(page);
+    }
+  }
 
   if (!fields.input_expires) {
     const title = await page.title();
