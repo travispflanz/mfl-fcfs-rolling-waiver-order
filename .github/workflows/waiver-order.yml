@@ -1,15 +1,16 @@
 name: MFL Waiver Adjustment Check
 
 # Runs entirely on GitHub's own hosted runners — never on any local
-# machine. Cloudflare's cron is UTC-only with no DST awareness, and so is
-# GitHub Actions' `schedule` trigger, so we register both UTC offsets that
-# "2am Central" can fall on across the year (CDT = UTC-5, CST = UTC-6) and
-# let the script's own Central-time check no-op the one that isn't really
-# 2am. Net effect: exactly one real run per night.
+# machine. Checks every 5 minutes (GitHub Actions' shortest allowed
+# interval) whether the computed waiver order has changed and, if so,
+# submits it — otherwise it's a fast no-op (see arraysEqual() in
+# scripts/update-waiver-order.mjs). Want to check less often instead?
+# Edit the cron expression below — anything from "*/5 * * * *" (every 5
+# minutes) up is valid, e.g. "*/30 * * * *" for every 30 minutes, or
+# "0 * * * *" for hourly.
 on:
   schedule:
-    - cron: '0 7 * * *'   # 2am Central Daylight Time (UTC-5)
-    - cron: '0 8 * * *'   # 2am Central Standard Time (UTC-6)
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -38,8 +39,24 @@ jobs:
 
       - run: npm ci
 
-      - name: Install Chromium (Playwright)
+      # Checking every 5 minutes means the Chromium download (normally the
+      # slowest part of each run, ~30-60s) would otherwise repeat on every
+      # single check. Cache it, keyed on package-lock.json so a Playwright
+      # version bump invalidates the cache automatically.
+      - name: Cache Playwright browser binary
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium (Playwright) — cache miss only
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium's OS-level dependencies — cache hit
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Update waiver order
         env:
@@ -47,10 +64,6 @@ jobs:
           MFL_USERNAME: ${{ secrets.MFL_USERNAME }}
           MFL_PASSWORD: ${{ secrets.MFL_PASSWORD }}
           # Manual runs (workflow_dispatch) default to a dry run for safety;
-          # the nightly schedule always runs for real (DRY_RUN=false).
+          # the schedule always runs for real (DRY_RUN=false).
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          # Manual runs bypass the "is it really 2am Central" guard so they're
-          # useful for testing at any time of day; the schedule trigger does not.
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' }}
         run: npm run update
-

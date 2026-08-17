@@ -7,12 +7,12 @@ specific acquisition types MFL tracks separately:
 - **First-Come-First-Served free agency** (instant pickups)
 - **Waiver free agency** (scheduled-priority claims)
 
-This bot doesn't care which of those two someone used — the moment *any*
-franchise picks up a player either way, it drops to the bottom of the
-list. Whoever's gone longest without an add (or never has) sits at the
-top. (MFL tracks other transaction types too — trades, IR moves, taxi
-squad, auctions — none of those affect waiver priority and this bot
-ignores them entirely.)
+This bot doesn't care which of those two someone used — usually within
+minutes of *any* franchise picking up a player either way, it drops to
+the bottom of the list. Whoever's gone longest without an add (or never
+has) sits at the top. (MFL tracks other transaction types too — trades,
+IR moves, taxi squad, auctions — none of those affect waiver priority
+and this bot ignores them entirely.)
 
 **mfl-fcfs-rolling-waiver-order** runs entirely on GitHub's own hosted
 runners — no server, no local machine, nothing that depends on your
@@ -44,22 +44,28 @@ computer being on.
    separately — the script pulls all three out of whatever URL you
    paste.
 
-3. Two settings need to change on **MFL's own site** — nothing to
-   do in GitHub for this step:
+3. Two settings you need to change in the **Commissioner Setup** area of
+   your MyFantasyLeague.com site (or similar wording — nothing to do in
+   GitHub for this step). Log into MFL as commissioner, open your
+   league, and click **Commissioner Setup** (top navigation menu —
+   only visible to commissioners). Or skip the menu-hunting and jump
+   straight to each page: take the league URL you used above and
+   swap its path for the two addresses below.
 
-   - **Set an initial waiver order.** Take the league URL you just used
-     above and change its path to `csetup?L={your league ID}&C=WAIVORD`
-     (your league's **Custom Waiver Order Setup** page), then set *some*
-     starting order there, even an arbitrary one. This bot only
-     *reorders* whatever's already there — it doesn't invent an order
-     from nothing.
+   - **Set an initial waiver order.** On **Commissioner Setup**, look
+     under "ADD/DROP AND WAIVERS SETUP" for **Custom Waiver Order
+     Setup** — or go directly to `csetup?L={your league ID}&C=WAIVORD`.
+     Set *some* starting order there, even an arbitrary one. This bot
+     only *reorders* whatever's already there — it doesn't invent an
+     order from nothing.
    - **Turn off MFL's own automatic waiver-order adjustment.** Same
-     idea, different page: `csetup?L={your league ID}&C=WAIVREQ`. Under
-     **"Waiver Request Sort Order"** select **"Same"** (*"Every round is
-     same order, using the criteria below"*). MFL's other three options
-     (Reverse, Weekly Rolling, Season-long Rolling) all have MFL
-     silently recalculating the order itself — if one of those stays
-     on, it'll periodically overwrite whatever this bot sets.
+     area, look for **Waiver Request Setup** — or go directly to
+     `csetup?L={your league ID}&C=WAIVREQ`. Under **"Waiver Request Sort
+     Order"** select **"Same"** (*"Every round is same order, using the
+     criteria below"*). MFL's other three options (Reverse, Weekly
+     Rolling, Season-long Rolling) all have MFL silently recalculating
+     the order itself — if one of those stays on, it'll periodically
+     overwrite whatever this bot sets.
 
 4. Back in GitHub, click the **Actions** tab. In the left sidebar, click
    **MFL Waiver Adjustment Check**. On the right, click the **Run
@@ -86,15 +92,23 @@ the new season's URL. That's the only yearly maintenance this needs.
 
 ## Schedule
 
-The workflow fires at both `07:00` and `08:00` UTC every day — one of
-those is 2am Central depending on Daylight Saving Time, the other is 3am
-or 1am. The script checks the real Central-time clock and no-ops on
-whichever firing isn't actually 2am, so only one real update happens per
-night. (Want a different time or timezone? Edit the two `cron:` lines in
-`.github/workflows/waiver-order.yml` and the `America/Chicago` /
-`hour !== 2` check in `scripts/update-waiver-order.mjs` — this is the one
-piece that isn't a plain setting, since covering an arbitrary hour/timezone
-combination across DST needs its own cron lines.)
+Checks every **5 minutes** by default — GitHub Actions' shortest allowed
+interval, so that's as close to real-time as this can get. Each check is
+cheap: it only actually submits a change to MFL when the computed order
+is different from what's already there, otherwise it's a quick no-op.
+
+MFL itself has no push/webhook mechanism for transactions (confirmed —
+even MFL's own official "Text Alerts" don't cover waiver/free-agent
+pickups, and a well-known third-party MFL app's own developers describe
+their "live" updates as periodic polling too), so checking on an
+interval is the closest any tool can get to instant.
+
+Want to check less often — e.g. to go easier on your Actions minutes
+while this repo is still private? Edit the one `cron:` line in
+`.github/workflows/waiver-order.yml`. It's a plain 5-field cron
+expression: `*/5 * * * *` is every 5 minutes, `*/30 * * * *` is every 30,
+`0 * * * *` is hourly, and so on — no timezone/DST math involved, since
+this no longer targets one specific time of day.
 
 ## Why a real browser (Playwright), not plain HTTP calls
 
@@ -151,3 +165,12 @@ This is set up as a GitHub template on purpose — click **Use this
 template**, add your three settings, done. If you'd rather not use GitHub
 at all, open an issue on this repo and say so; if enough people ask for a
 different setup path, it's worth building one.
+
+One candidate already on the list: an earlier version of this ran as a
+Cloudflare Worker (see "Why a real browser" above) and hit what looked
+at the time like a hard blocker. In hindsight, the real cause was almost
+certainly the missing "Become Commissioner" step — something a Worker
+doing plain HTTP requests could just as easily do once it knows to. That
+makes a lightweight, no-browser Worker version worth revisiting as a
+faster/cheaper alternative to the Playwright approach here, for anyone
+who'd rather run this off GitHub Actions entirely.

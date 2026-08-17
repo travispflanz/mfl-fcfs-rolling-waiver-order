@@ -1,5 +1,5 @@
 /**
- * MFL Custom Waiver Order — nightly automation (GitHub Actions + Playwright)
+ * MFL Custom Waiver Order — recurring automation (GitHub Actions + Playwright)
  * ============================================================================
  *
  * Sets the Custom Waiver Order for a MyFantasyLeague.com league by reverse
@@ -55,9 +55,11 @@
  *                                        parseLeagueUrl() below.
  *   DRY_RUN         (default "false")    if "true", computes and logs the
  *                                        target order but does NOT submit it
- *   FORCE_RUN       (default "false")    if "true", skips the "is it really
- *                                        2am Central" guard (used for manual/
- *                                        workflow_dispatch test runs)
+ *
+ * There is no "is it really the right time" guard here — the workflow's
+ * cron interval itself IS the schedule (see .github/workflows/waiver-order.yml),
+ * and every run is a cheap no-op if nothing changed (see arraysEqual() in
+ * main() below), so there's nothing to dedupe or gate on time-of-day.
  */
 
 import { chromium } from 'playwright';
@@ -65,7 +67,6 @@ import { chromium } from 'playwright';
 const USERNAME = process.env.MFL_USERNAME;
 const PASSWORD = process.env.MFL_PASSWORD;
 const DRY_RUN = /^true$/i.test(process.env.DRY_RUN || 'false');
-const FORCE_RUN = /^true$/i.test(process.env.FORCE_RUN || 'false');
 
 // Every MFL league URL — its homepage, a report, a setup page, whatever
 // someone happens to paste — follows the same three deterministic rules:
@@ -130,25 +131,10 @@ function assertConfig() {
   BASE = `https://${HOST}.myfantasyleague.com/${YEAR}`;
 }
 
-function centralHourNow() {
-  return Number(
-    new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      hour12: false,
-      timeZone: 'America/Chicago',
-    }).format(new Date())
-  );
-}
-
 async function main() {
   assertConfig();
 
-  const hour = centralHourNow();
-  if (!FORCE_RUN && hour !== 2) {
-    log(`Central time is ${hour}:00, not 2am — this cron fire is the wrong-offset duplicate. No-op.`);
-    return;
-  }
-  log(`Proceeding. FORCE_RUN=${FORCE_RUN} centralHour=${hour} DRY_RUN=${DRY_RUN} host=${HOST} year=${YEAR} league=${LEAGUE}`);
+  log(`Proceeding. DRY_RUN=${DRY_RUN} host=${HOST} year=${YEAR} league=${LEAGUE}`);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
