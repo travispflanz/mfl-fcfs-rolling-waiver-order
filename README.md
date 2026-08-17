@@ -20,13 +20,41 @@ computer being on.
 
 ## Quick start
 
-1. Click **Use this template** — green button, top-right above the file
+Do these in order — the MFL-side settings come first on purpose, so
+they're already correct by the time the automation can possibly run
+(see "What actually turns this on" below).
+
+1. Two settings to change in the **Commissioner Setup** area of your
+   MyFantasyLeague.com site — nothing to do in GitHub yet. Log into MFL
+   as commissioner, open your league, and click **Commissioner Setup**
+   (top navigation menu — only visible to commissioners). Or skip the
+   menu-hunting and jump straight to each page below by taking your
+   league's URL and swapping its path.
+
+   - **Set an initial waiver order.** On **Commissioner Setup**, look
+     under "ADD/DROP AND WAIVERS SETUP" for **Custom Waiver Order
+     Setup** — or go directly to `csetup?L={your league ID}&C=WAIVORD`.
+     Set *some* starting order there, even an arbitrary one. This bot
+     only *reorders* whatever's already there — it doesn't invent an
+     order from nothing.
+   - **Turn off MFL's own automatic waiver-order adjustment.** Same
+     area, look for **Waiver Request Setup** — or go directly to
+     `csetup?L={your league ID}&C=WAIVREQ`. Under **"Waiver Request Sort
+     Order"** select **"Same"** (*"Every round is same order, using the
+     criteria below"*). MFL's other three options (Reverse, Weekly
+     Rolling, Season-long Rolling) all have MFL silently recalculating
+     the order itself — if one of those stays on, it'll periodically
+     overwrite whatever this bot sets. (The automation checks for this
+     on every run and logs a warning if it's not set to "Same" — see
+     "Settings-compatibility check" below.)
+
+2. Click **Use this template** — green button, top-right above the file
    list on this page — then **Create a new repository**. Give it any
    name, pick Public or Private, click **Create repository**. You now
    have your own independent copy; nothing you do in it ever touches
    this original repo.
 
-2. In your new repo, click the **Settings** tab (top row of the repo
+3. In your new repo, click the **Settings** tab (top row of the repo
    page, after Code / Issues / Pull requests / Actions). In the left
    sidebar, click **Secrets and variables**, then **Actions**. That page
    has two sub-tabs near the top, **Secrets** and **Variables** — on the
@@ -44,43 +72,67 @@ computer being on.
    separately — the script pulls all three out of whatever URL you
    paste.
 
-3. Two settings you need to change in the **Commissioner Setup** area of
-   your MyFantasyLeague.com site (or similar wording — nothing to do in
-   GitHub for this step). Log into MFL as commissioner, open your
-   league, and click **Commissioner Setup** (top navigation menu —
-   only visible to commissioners). Or skip the menu-hunting and jump
-   straight to each page: take the league URL you used above and
-   swap its path for the two addresses below.
+4. Test it with a dry run before trusting it for real. Click the
+   **Actions** tab (top row of the repo page). In the left sidebar,
+   click **MFL Waiver Adjustment Check**. Above the list of runs
+   (top-right), click the **Run workflow** button — a small panel drops
+   down with three things in it, top to bottom:
+   - a **Branch** dropdown — leave it as-is (your default branch)
+   - a **dry_run** checkbox — leave it checked (checked by default)
+   - a green **Run workflow** button — click this one to actually start it
 
-   - **Set an initial waiver order.** On **Commissioner Setup**, look
-     under "ADD/DROP AND WAIVERS SETUP" for **Custom Waiver Order
-     Setup** — or go directly to `csetup?L={your league ID}&C=WAIVORD`.
-     Set *some* starting order there, even an arbitrary one. This bot
-     only *reorders* whatever's already there — it doesn't invent an
-     order from nothing.
-   - **Turn off MFL's own automatic waiver-order adjustment.** Same
-     area, look for **Waiver Request Setup** — or go directly to
-     `csetup?L={your league ID}&C=WAIVREQ`. Under **"Waiver Request Sort
-     Order"** select **"Same"** (*"Every round is same order, using the
-     criteria below"*). MFL's other three options (Reverse, Weekly
-     Rolling, Season-long Rolling) all have MFL silently recalculating
-     the order itself — if one of those stays on, it'll periodically
-     overwrite whatever this bot sets.
+   Wait about a minute, then a new row appears in the run list below —
+   click it, then open the **update-waiver-order** job to see the log.
+   Confirm it logged your real franchises and a sensible target order,
+   with no errors.
 
-4. Back in GitHub, click the **Actions** tab. In the left sidebar, click
-   **MFL Waiver Adjustment Check**. On the right, click the **Run
-   workflow** dropdown, leave the **dry_run** checkbox checked (it's
-   checked by default), click the green **Run workflow** button inside
-   that dropdown. Wait about a minute, click into the run that appears,
-   and open its log — confirm it logged your real franchises and a
-   sensible target order, with no errors.
-
-5. Run it again the same way, but this time **uncheck dry_run** before
-   clicking **Run workflow** — this does one real, one-time update.
-   Check your league homepage's Waiver Wire Order widget to confirm it
-   went live.
+5. Run it again the same way, but this time **uncheck dry_run** in that
+   same panel before clicking the green **Run workflow** button — this
+   does one real, one-time update. Check your league homepage's Waiver
+   Wire Order widget to confirm it went live.
 
 6. Done — from here on it runs on its own automatically.
+
+### What actually turns this on
+
+There's no separate "activate" switch — the schedule in
+`.github/workflows/waiver-order.yml` starts running as soon as (a) the
+workflow file exists on your repo's default branch, which happens the
+moment you create it from the template, and (b) Actions is enabled for
+your repo, which is the default. In practice that means it can start
+running for real within minutes of finishing step 2 — well before you'd
+naturally get to steps 4/5 — which is exactly why the MFL-side settings
+in step 1 come first: so there's nothing for it to get wrong even if it
+fires before you finish the rest of this checklist. (One caveat seen
+during testing: a *brand-new* repo's workflow can take a short moment to
+be indexed by GitHub after the first push — if step 4 shows no "MFL
+Waiver Adjustment Check" in the sidebar yet, wait a minute and refresh.)
+
+### If it goes quiet for a while
+
+Nothing accumulates or drifts — every run independently reads your
+league's *current* live state (current order + full transaction
+history) and recomputes fresh, so a run failing, or the league settings
+being changed by hand in the meantime, doesn't leave anything to "fix"
+later. The next successful run just picks up from wherever things
+actually stand.
+
+Two things worth knowing about failures specifically:
+- GitHub automatically emails/notifies (per your own notification
+  settings) whoever created the workflow when a scheduled run fails —
+  nothing extra to configure for that.
+- Separately, GitHub auto-disables scheduled workflows in public repos
+  after **60 days with no repository activity at all** (any commit
+  resets this) — worth knowing about for a long off-season, unrelated to
+  whether the script itself is working.
+
+### Settings-compatibility check
+
+Every run checks whether MFL's own **Waiver Request Sort Order** is set
+to "Same" (the setting from step 1) before doing anything else. If it
+isn't, the run logs a clearly-marked warning explaining that MFL may
+silently overwrite whatever this bot sets — and still proceeds, rather
+than blocking, in case that's a deliberate choice.
 
 ## Each new NFL season
 
@@ -92,29 +144,18 @@ the new season's URL. That's the only yearly maintenance this needs.
 
 ## Schedule
 
-Checks every **5 minutes** by default — GitHub Actions' shortest allowed
-interval, so that's as close to real-time as this can get. Each check is
-cheap: once the Chromium browser binary is cached (automatic, after the
-first run), a no-op check — nothing changed, nothing submitted — takes
-about **25 seconds** end to end, confirmed live.
+Checks every **5 minutes** by default (GitHub Actions' shortest allowed
+interval — MFL has no push/webhook for transactions, confirmed, so
+polling on an interval is as close to real-time as this can get). Each
+check only actually submits a change when the computed order differs
+from what's already there; otherwise it's a fast no-op, ~25 seconds
+end to end.
 
-MFL itself has no push/webhook mechanism for transactions (confirmed —
-even MFL's own official "Text Alerts" don't cover waiver/free-agent
-pickups, and a well-known third-party MFL app's own developers describe
-their "live" updates as periodic polling too), so checking on an
-interval is the closest any tool can get to instant.
-
-**On Actions minutes:** 5-minute checks work out to roughly 288 runs/day
-— at ~25s each, about 2 hours of runner time per day, ~3,600
-minutes/month. Public repos get unlimited free minutes on standard
-runners, so this is a non-issue once you flip your repo public. Kept
-private, it'll exceed GitHub's free private-repo minutes allowance
-(2,000/month) and start drawing from your account's paid minutes. Want
-to check less often instead? Edit the one
-`cron:` line in `.github/workflows/waiver-order.yml` — a plain 5-field
-cron expression: `*/5 * * * *` is every 5 minutes, `*/30 * * * *` is
-every 30, `0 * * * *` is hourly, and so on. No timezone/DST math
-involved, since this no longer targets one specific time of day.
+Want to check less often? Edit the one `cron:` line near the top of
+`.github/workflows/waiver-order.yml` — it's a standard 5-field cron
+expression (`*/5 * * * *` = every 5 minutes, `0 * * * *` = hourly, etc.).
+See GitHub's own [cron syntax reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+for the exact format and its quirks.
 
 ## Why a real browser (Playwright), not plain HTTP calls
 

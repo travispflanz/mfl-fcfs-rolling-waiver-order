@@ -131,8 +131,42 @@ function assertConfig() {
   BASE = `https://${HOST}.myfantasyleague.com/${YEAR}`;
 }
 
+// MFL leagues get transferred to a new season every year (same host and
+// league ID, new year) — by the commissioner, whenever they choose to,
+// not on any fixed date. Rather than require MFL_LEAGUE_URL to be
+// updated by hand every season, probe forward from the configured year:
+// confirmed live that a season MFL hasn't transferred this league into
+// yet returns a clean, unambiguous HTTP 404 (no auth or browser needed —
+// plain fetch()), so advancing past a stale year is safe and cheap.
+async function advanceToCurrentSeason() {
+  const MAX_YEARS_FORWARD = 3;
+  let year = Number(YEAR);
+  for (let i = 0; i < MAX_YEARS_FORWARD; i++) {
+    const nextYear = year + 1;
+    const url = `https://${HOST}.myfantasyleague.com/${nextYear}/home/${LEAGUE}`;
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (err) {
+      log(`Season auto-detect: request to ${url} failed (${err.message}) — staying on ${year}.`);
+      break;
+    }
+    if (res.status !== 200) break; // next year isn't live for this league yet
+    year = nextYear;
+  }
+  if (String(year) !== YEAR) {
+    log(
+      `Season auto-detect: MFL_LEAGUE_URL specified ${YEAR}, but ${year} is now live for this ` +
+        `league — using ${year} instead. Consider updating MFL_LEAGUE_URL to skip this check every run.`
+    );
+    YEAR = String(year);
+    BASE = `https://${HOST}.myfantasyleague.com/${YEAR}`;
+  }
+}
+
 async function main() {
   assertConfig();
+  await advanceToCurrentSeason();
 
   log(`Proceeding. DRY_RUN=${DRY_RUN} host=${HOST} year=${YEAR} league=${LEAGUE}`);
 
@@ -149,6 +183,10 @@ async function main() {
     await login(page);
     await becomeCommissioner(page);
     log(`Auth phase (login + become commissioner) took ${Date.now() - authStart}ms.`);
+
+    await warnIfWaiverOrderTypeIncompatible(page).catch((err) => {
+      log('Warning: could not check the Waiver Request Sort Order setting (non-fatal):', err.message);
+    });
 
     const franchises = await getFranchiseNames(page).catch((err) => {
       log('Warning: could not fetch franchise names (non-fatal):', err.message);
@@ -274,6 +312,38 @@ async function activateCommissionerModeIfNeeded(page) {
     );
   }
   return true;
+}
+
+// Confirmed live: MFL's "Waiver Request Sort Order" (csetup?C=WAIVREQ,
+// field WAIVER_ORDER) must be set to SAME ("Same: Every round is same
+// order, using the criteria below") for a custom order to actually
+// stick — the other three options (REVERSE, WEEKLY, ROTATE) all have
+// MFL recalculating the order itself, which will eventually overwrite
+// whatever this script sets. Warns loudly but doesn't block the run —
+// someone may have a deliberate reason to keep MFL's own rolling order,
+// and there's no one present to answer an interactive prompt anyway.
+async function warnIfWaiverOrderTypeIncompatible(page) {
+  const url = `${BASE}/csetup?L=${LEAGUE}&C=WAIVREQ`;
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const checked = await page.evaluate(() => {
+    const el = document.querySelector('input[name="WAIVER_ORDER"]:checked');
+    return el ? el.value : null;
+  });
+
+  if (checked === null) {
+    log(`Warning: could not read the Waiver Request Sort Order setting at ${url} — page may have changed.`);
+    return;
+  }
+  if (checked !== 'SAME') {
+    log(
+      `⚠ WARNING: This league's "Waiver Request Sort Order" (${url}) is set to "${checked}", not "Same". ` +
+        `MFL will periodically recalculate the waiver order itself under this setting and may overwrite ` +
+        `whatever this run submits. Proceeding anyway — set it to "Same" if you want this bot to be the ` +
+        `sole authority over waiver order.`
+    );
+  } else {
+    log('Waiver Request Sort Order is "Same" — compatible.');
+  }
 }
 
 async function getFranchiseNames(page) {
