@@ -24,11 +24,14 @@ Do these in order — the MFL-side settings come first on purpose, so
 they're already correct by the time the automation can possibly run
 (see "What actually turns this on" below).
 
-1. Settings to change in the **Commissioner Setup** area of your
-   MyFantasyLeague.com site — nothing to do in GitHub yet. Log into MFL
-   as commissioner, open your league, and click **Commissioner Setup**
-   (top navigation menu — only visible to commissioners). Under
-   "ADD/DROP AND WAIVERS SETUP", click **Waiver Request Setup**, then:
+1. Settings to change in MFL's own site — nothing to do in GitHub yet.
+   Log into MFL as commissioner, open your league, then:
+
+   > **Commissioner Setup** *(top navigation menu — only visible to
+   > commissioners)* → *"ADD/DROP AND WAIVERS SETUP"* → **Waiver
+   > Request Setup**
+
+   Then:
 
    - Find **"Waiver Request Sort Order"** and select either **"Same"**
      (a straight line: round 1, 2, ... N, then repeats the same way
@@ -55,8 +58,11 @@ they're already correct by the time the automation can possibly run
    bot just adopts whatever's there as its starting point and reorders
    from there.
 
-2. Above the file list on this page, click **Use this template**, then
-   **Create a new repository**. Give it any name, and pick **Private**
+2. Above the file list on this page:
+
+   > **Use this template** → **Create a new repository**
+
+   Give it any name, and pick **Private**
    — your `MFL_USERNAME`/`MFL_PASSWORD` secrets themselves stay hidden
    either way, but a Public repo's Actions run logs are visible to
    literally anyone on the internet, not just you, so Private is the
@@ -68,13 +74,15 @@ they're already correct by the time the automation can possibly run
    repository**. You now have your own independent copy; nothing you do
    in it ever touches this original repo.
 
-3. In your new repo, click the **Settings** tab (top row of the repo
-   page, after Code / Issues / Pull requests / Actions). In the left
-   sidebar, click **Secrets and variables**, then **Actions**. That page
-   has two sub-tabs near the top, **Secrets** and **Variables** — on the
-   Secrets tab, click **New repository secret** for each of the first
-   two rows below; on the Variables tab, click **New repository
-   variable** for the third:
+3. In your new repo:
+
+   > **Settings** *(top row, after Code / Issues / Pull requests /
+   > Actions)* → **Secrets and variables** → **Actions**
+
+   That page has two sub-tabs near the top, **Secrets** and
+   **Variables** — on the Secrets tab, click **New repository secret**
+   for each of the first two rows below; on the Variables tab, click
+   **New repository variable** for the third:
 
    | Name | Type | Value |
    |---|---|---|
@@ -86,11 +94,13 @@ they're already correct by the time the automation can possibly run
    separately — the script pulls all three out of whatever URL you
    paste.
 
-4. Test it with a dry run before trusting it for real. Click the
-   **Actions** tab (top row of the repo page). In the left sidebar,
-   click **MFL Waiver Adjustment Check**. Above the list of runs
-   (top-right), click the **Run workflow** button — a small panel drops
-   down with three things in it, top to bottom:
+4. Test it with a dry run before trusting it for real.
+
+   > **Actions** *(top row)* → **MFL Waiver Adjustment Check**
+   > *(left sidebar)* → **Run workflow** *(button, top-right above the
+   > run list)*
+
+   That opens a small panel with three things in it, top to bottom:
    - a **Branch** dropdown — leave it as-is (your default branch)
    - a **dry_run** checkbox — leave it checked (checked by default)
    - a green **Run workflow** button — click this one to actually start it
@@ -153,9 +163,11 @@ rather than blocking, in case that's a deliberate choice.
 
 MFL has commissioners transfer/export their league forward to a new
 season every year. The host and league ID stay the same — only the year
-changes. When you do that transfer, update the `MFL_LEAGUE_URL` variable
-(**Settings → Secrets and variables → Actions → Variables**) to point at
-the new season's URL. That's the only yearly maintenance this needs.
+changes. When you do that transfer, update the `MFL_LEAGUE_URL` variable:
+
+> **Settings** → **Secrets and variables** → **Actions** → **Variables**
+
+That's the only yearly maintenance this needs.
 
 ## Schedule
 
