@@ -117,11 +117,10 @@ async function main() {
   const page = await context.newPage();
 
   try {
+    const authStart = Date.now();
     await login(page);
-
-    log('Navigating to league home page to establish commissioner mode:', `${BASE}/home/${LEAGUE}`);
-    await page.goto(`${BASE}/home/${LEAGUE}`, { waitUntil: 'domcontentloaded' });
-    await activateCommissionerModeIfNeeded(page);
+    await becomeCommissioner(page);
+    log(`Auth phase (login + become commissioner) took ${Date.now() - authStart}ms.`);
 
     const franchises = await getFranchiseNames(page).catch((err) => {
       log('Warning: could not fetch franchise names (non-fatal):', err.message);
@@ -157,7 +156,13 @@ async function main() {
 // ────────────────────────────────────────────────────────────────────────
 
 async function login(page) {
-  const loginUrl = `${BASE}/login`;
+  // Including L={league} on the login URL itself (rather than the bare
+  // /login) — confirmed live by the league owner via manual browser testing
+  // as part of a 3-URL login shortcut (login?L=... -> logout?L=...&BECOME=0000
+  // -> csetup?L=...&C=WAIVORD), which this function and becomeCommissioner()
+  // below now follow directly instead of discovering the "Become
+  // Commissioner" link via a DOM search on an intermediate home-page visit.
+  const loginUrl = `${BASE}/login?L=${LEAGUE}`;
   log('Navigating to login page:', loginUrl);
   await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
 
@@ -185,6 +190,28 @@ async function login(page) {
   log('Login OK. Landed on:', page.url());
 }
 
+// Direct 3-URL shortcut (login?L=... -> logout?L=...&BECOME=0000 ->
+// csetup?...): navigates straight to the known "Become Commissioner" URL
+// instead of loading an intermediate page and DOM-searching for the link.
+// Faster (one fewer full page load + no DOM query) and more robust (not
+// dependent on the nav/dropdown markup that made a simulated .click() fail
+// earlier). readWaiverSetupPage() still falls back to the DOM-search
+// version (activateCommissionerModeIfNeeded) if this ever stops working.
+async function becomeCommissioner(page) {
+  const url = `${BASE}/logout?L=${LEAGUE}&BECOME=0000`;
+  log('Navigating directly to "Become Commissioner" URL:', url);
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+  const loggedOut = await page.locator('input[name="PASSWORD"]').count();
+  if (loggedOut > 0) {
+    throw new Error(
+      `After navigating to the "Become Commissioner" URL, the session looks logged out ` +
+        `(a password field is present again) at url=${page.url()}.`
+    );
+  }
+  log('Commissioner mode active. Landed on:', page.url(), '—', await page.title());
+}
+
 // MFL treats "authenticated" and "acting as commissioner for this league"
 // as two separate session states — confirmed live: the account's own
 // login is not enough on its own, but a league-scoped "Become
@@ -192,6 +219,10 @@ async function login(page) {
 // present on league pages and switches the session into commissioner
 // mode. Must be done on a page with league context (?L={league}) — it
 // is NOT present on the generic post-login landing page.
+//
+// Fallback only (see becomeCommissioner() above for the normal path):
+// discovers the link via DOM search instead of assuming the URL, used by
+// readWaiverSetupPage() if commissioner mode didn't take for some reason.
 async function activateCommissionerModeIfNeeded(page) {
   const link = page.locator('a', { hasText: /become\s+commissioner/i }).first();
   const count = await link.count();
