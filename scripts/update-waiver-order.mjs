@@ -45,29 +45,68 @@
  *
  * ENV VARS
  * -------------------------------------------------------------------------
- *   MFL_USERNAME   (required, secret)  MFL account username
- *   MFL_PASSWORD   (required, secret)  MFL account password
- *   MFL_HOST       (default www44)     league's host subdomain
- *   MFL_YEAR       (default 2026)      season year
- *   MFL_LEAGUE     (default 19186)     numeric league id
- *   DRY_RUN        (default "false")   if "true", computes and logs the
- *                                      target order but does NOT submit it
- *   FORCE_RUN      (default "false")   if "true", skips the "is it really
- *                                      2am Central" guard (used for manual/
- *                                      workflow_dispatch test runs)
+ *   MFL_USERNAME    (required, secret)   MFL account username
+ *   MFL_PASSWORD    (required, secret)   MFL account password
+ *   MFL_LEAGUE_URL  (required, variable) any URL from your league — e.g. its
+ *                                        homepage, or the address bar while
+ *                                        looking at any league page. The
+ *                                        host, season year, and league ID
+ *                                        are all parsed out of it — see
+ *                                        parseLeagueUrl() below.
+ *   DRY_RUN         (default "false")    if "true", computes and logs the
+ *                                        target order but does NOT submit it
+ *   FORCE_RUN       (default "false")    if "true", skips the "is it really
+ *                                        2am Central" guard (used for manual/
+ *                                        workflow_dispatch test runs)
  */
 
 import { chromium } from 'playwright';
 
-const HOST = process.env.MFL_HOST || 'www44';
-const YEAR = process.env.MFL_YEAR || '2026';
-const LEAGUE = process.env.MFL_LEAGUE || '19186';
 const USERNAME = process.env.MFL_USERNAME;
 const PASSWORD = process.env.MFL_PASSWORD;
 const DRY_RUN = /^true$/i.test(process.env.DRY_RUN || 'false');
 const FORCE_RUN = /^true$/i.test(process.env.FORCE_RUN || 'false');
 
-const BASE = `https://${HOST}.myfantasyleague.com/${YEAR}`;
+// Every MFL league URL — its homepage, a report, a setup page, whatever
+// someone happens to paste — follows the same three deterministic rules:
+//   host:   "www" + digits, e.g. www44
+//   year:   4 digits starting with "20", as its own path segment
+//   league: always 5 digits, either an "L=" query param or a bare path
+//           segment (e.g. .../2026/home/19186 vs .../options?L=19186&...)
+// so a single pasted URL is enough to derive all three.
+function parseLeagueUrl(url) {
+  if (!url) {
+    throw new Error(
+      'MFL_LEAGUE_URL is not set. Paste any URL from your league — for example ' +
+        'the address bar while viewing your league homepage, ' +
+        'e.g. https://www44.myfantasyleague.com/2026/home/19186'
+    );
+  }
+
+  const hostMatch = url.match(/(?:https?:\/\/)?(www\d+)\.myfantasyleague\.com/i);
+  const yearMatch = url.match(/\/(20\d{2})(?:[/?]|$)/);
+  const leagueMatch = url.match(/[?&]L=(\d{5})\b/i) || url.match(/\/(\d{5})(?:[/?]|$)/);
+
+  const problems = [];
+  if (!hostMatch) problems.push('a host like "www44" (expected https://www<digits>.myfantasyleague.com/...)');
+  if (!yearMatch) problems.push('a 4-digit season year starting with "20" as its own path segment');
+  if (!leagueMatch) problems.push('a 5-digit league ID, either as "L=12345" or its own path segment');
+
+  if (problems.length) {
+    throw new Error(
+      `Could not parse MFL_LEAGUE_URL="${url}" — missing: ${problems.join('; ')}. ` +
+        `Example of a URL that works: https://www44.myfantasyleague.com/2026/home/19186`
+    );
+  }
+
+  return { host: hostMatch[1].toLowerCase(), year: yearMatch[1], league: leagueMatch[1] };
+}
+
+// Populated by assertConfig() at the start of main(), not at module load —
+// so a bad/missing MFL_LEAGUE_URL fails the same clean, logged way as a
+// missing secret, instead of as a raw uncaught exception before anything
+// else runs.
+let HOST, YEAR, LEAGUE, BASE;
 
 // Transaction types that represent an "Acquired via free agency/waivers"
 // event, per MFL's documented `transactions` export TRANS_TYPE values.
@@ -86,6 +125,9 @@ function assertConfig() {
   if (missing.length) {
     throw new Error(`Missing required secret(s): ${missing.join(', ')}`);
   }
+
+  ({ host: HOST, year: YEAR, league: LEAGUE } = parseLeagueUrl(process.env.MFL_LEAGUE_URL));
+  BASE = `https://${HOST}.myfantasyleague.com/${YEAR}`;
 }
 
 function centralHourNow() {
@@ -121,6 +163,11 @@ async function main() {
     await login(page);
     await becomeCommissioner(page);
     log(`Auth phase (login + become commissioner) took ${Date.now() - authStart}ms.`);
+
+    if (/^true$/i.test(process.env.DIAGNOSE_SETTINGS || '')) {
+      await diagnoseWaiverSettingsPage(page);
+      return;
+    }
 
     const franchises = await getFranchiseNames(page).catch((err) => {
       log('Warning: could not fetch franchise names (non-fatal):', err.message);
@@ -246,6 +293,46 @@ async function activateCommissionerModeIfNeeded(page) {
     );
   }
   return true;
+}
+
+// One-off diagnostic (DIAGNOSE_SETTINGS=true), not part of normal
+// operation: finds the real commissioner-setup page and control for
+// disabling MFL's native auto-rolling waiver order, so README
+// instructions can name the exact setting instead of guessing.
+async function diagnoseWaiverSettingsPage(page) {
+  const indexUrl = `${BASE}/commissioner_setup?L=${LEAGUE}`;
+  log('DIAGNOSE: loading commissioner setup index:', indexUrl);
+  await page.goto(indexUrl, { waitUntil: 'domcontentloaded' });
+
+  const links = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('a'))
+      .filter((a) => /waiver|free\s*agent/i.test(a.textContent || ''))
+      .map((a) => ({ text: a.textContent.trim(), href: a.getAttribute('href') }));
+  });
+  log('DIAGNOSE: waiver/free-agent related links on commissioner_setup:', JSON.stringify(links, null, 2));
+
+  for (const link of links) {
+    if (!link.href) continue;
+    const url = link.href.startsWith('http') ? link.href : `${BASE}/${link.href.replace(/^\//, '')}`;
+    log(`DIAGNOSE: loading "${link.text}" ->`, url);
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const controls = await page.evaluate(() => {
+      const describe = (el) => {
+        const labelText =
+          el.closest('tr')?.querySelector('td.inputlabel')?.textContent?.trim() ||
+          el.closest('label')?.textContent?.trim() ||
+          '';
+        return { tag: el.tagName, type: el.type || '', name: el.name || '', id: el.id || '', value: el.value, checked: el.checked, label: labelText };
+      };
+      const selects = Array.from(document.querySelectorAll('select')).map((s) => ({
+        ...describe(s),
+        options: Array.from(s.options).map((o) => ({ value: o.value, text: o.textContent.trim(), selected: o.selected })),
+      }));
+      const radios = Array.from(document.querySelectorAll('input[type="radio"]')).map(describe);
+      return { title: document.title, selects, radios };
+    });
+    log(`DIAGNOSE: controls on "${link.text}" (title="${controls.title}"):`, JSON.stringify(controls, null, 2));
+  }
 }
 
 async function getFranchiseNames(page) {

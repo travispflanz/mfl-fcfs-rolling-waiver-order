@@ -43,9 +43,8 @@ jobs:
 
       - name: Update waiver order
         env:
-          MFL_HOST: ${{ vars.MFL_HOST }}
-          MFL_YEAR: ${{ vars.MFL_YEAR }}
-          MFL_LEAGUE: ${{ vars.MFL_LEAGUE }}
+          MFL_LEAGUE_URL: ${{ vars.MFL_LEAGUE_URL }}
+          DIAGNOSE_SETTINGS: 'true'
           MFL_USERNAME: ${{ secrets.MFL_USERNAME }}
           MFL_PASSWORD: ${{ secrets.MFL_PASSWORD }}
           # Manual runs (workflow_dispatch) default to a dry run for safety;
