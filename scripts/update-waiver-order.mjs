@@ -164,11 +164,6 @@ async function main() {
     await becomeCommissioner(page);
     log(`Auth phase (login + become commissioner) took ${Date.now() - authStart}ms.`);
 
-    if (/^true$/i.test(process.env.DIAGNOSE_SETTINGS || '')) {
-      await diagnoseWaiverSettingsPage(page);
-      return;
-    }
-
     const franchises = await getFranchiseNames(page).catch((err) => {
       log('Warning: could not fetch franchise names (non-fatal):', err.message);
       return {};
@@ -293,55 +288,6 @@ async function activateCommissionerModeIfNeeded(page) {
     );
   }
   return true;
-}
-
-// One-off diagnostic (DIAGNOSE_SETTINGS=true), not part of normal
-// operation: finds the real commissioner-setup page and control for
-// disabling MFL's native auto-rolling waiver order, so README
-// instructions can name the exact setting instead of guessing.
-async function diagnoseWaiverSettingsPage(page) {
-  const indexUrl = `${BASE}/commissioner_setup?L=${LEAGUE}`;
-  log('DIAGNOSE: loading commissioner setup index:', indexUrl);
-  await page.goto(indexUrl, { waitUntil: 'domcontentloaded' });
-
-  const links = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('a'))
-      .filter((a) => /waiver|free\s*agent/i.test(a.textContent || ''))
-      .map((a) => ({ text: a.textContent.trim(), href: a.getAttribute('href') }));
-  });
-  log('DIAGNOSE: waiver/free-agent related links on commissioner_setup:', JSON.stringify(links, null, 2));
-
-  for (const link of links) {
-    if (!link.href) continue;
-    const url = link.href.startsWith('http') ? link.href : `${BASE}/${link.href.replace(/^\//, '')}`;
-    log(`DIAGNOSE: loading "${link.text}" ->`, url);
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
-    const controls = await page.evaluate(() => {
-      const describe = (el) => {
-        const rowText = el.closest('tr')?.innerText?.trim().replace(/\s+/g, ' ').slice(0, 300) || '';
-        const labelFor = el.id ? document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim() : '';
-        const nextSibling = el.nextSibling && el.nextSibling.nodeType === 3 ? el.nextSibling.textContent.trim() : '';
-        return {
-          tag: el.tagName,
-          type: el.type || '',
-          name: el.name || '',
-          id: el.id || '',
-          value: el.value,
-          checked: el.checked,
-          labelFor,
-          nextSibling,
-          rowText,
-        };
-      };
-      const selects = Array.from(document.querySelectorAll('select')).map((s) => ({
-        ...describe(s),
-        options: Array.from(s.options).map((o) => ({ value: o.value, text: o.textContent.trim(), selected: o.selected })),
-      }));
-      const radios = Array.from(document.querySelectorAll('input[type="radio"]')).map(describe);
-      return { title: document.title, selects, radios };
-    });
-    log(`DIAGNOSE: controls on "${link.text}" (title="${controls.title}"):`, JSON.stringify(controls, null, 2));
-  }
 }
 
 async function getFranchiseNames(page) {

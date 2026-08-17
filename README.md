@@ -1,97 +1,99 @@
-# MFL Custom Waiver Order — Nightly Automation (GitHub Actions)
+# MFL FCFS + Rolling Waiver Order
 
-Sets the Custom Waiver Order for the **Kansas City Keeper** MFL league
-(`www44`, league `19186`) every night, ranking franchises by reverse
-recency of "Acquired" (waiver/free-agent) transactions: whoever most
-recently picked someone up off waivers goes to the bottom of the order;
-whoever has gone longest without an add (or never has) goes to the top.
+Automatically keeps a MyFantasyLeague.com (MFL) league's **Custom Waiver
+Order** on one continuously-updating rolling priority list — combining
+**both** of MFL's separate acquisition systems into a single order:
 
-Runs entirely on **GitHub's own hosted runners** via a scheduled Actions
-workflow — nothing about this depends on any local machine being on.
+- **First-Come-First-Served free agency** (instant pickups)
+- **Waivers** (scheduled-priority claims)
 
-## Why a real browser (Playwright), not a Cloudflare Worker
+MFL treats these as two different systems. This bot doesn't care which one
+someone used — the moment *any* franchise picks up a player either way, it
+drops to the bottom of the list. Whoever's gone longest without an add (or
+never has) sits at the top. It runs nightly, entirely on **GitHub's own
+hosted runners** — no server, no local machine, nothing that depends on
+your computer being on.
 
-A prior version of this automation ran as a Cloudflare Worker doing plain
-`fetch()` calls (login API + manual cookie handling). It reliably got
-served a stripped, logged-out-looking page from MFL — even when using a
-cookie string captured directly from a real, working browser session. That
-rules out "wrong cookie" as the cause. Direct inspection also shows MFL
-sitting on bare Apache/mod_perl with no third-party WAF/CDN fingerprint, so
-it isn't an obvious edge-network IP block either. The symptom (login
-succeeds, the very next request looks anonymous) best fits some kind of
-session/origin binding that a serverless `fetch()` can't reproduce but a
-single continuous real browser session does automatically. This version
-uses a real headless Chromium (via Playwright) for the entire session —
-login through submission — so every request looks exactly like one person
-clicking through the site.
+## Quick start
 
-## One-time setup
+1. Click **Use this template** (top of this repo) → create your own copy.
+2. In your new repo, go to **Settings → Secrets and variables → Actions**
+   and add three values:
 
-### 1. Add repository secrets
+   | Name | Type | Value |
+   |---|---|---|
+   | `MFL_USERNAME` | Secret | Your MFL account username |
+   | `MFL_PASSWORD` | Secret | Your MFL account password |
+   | `MFL_LEAGUE_URL` | Variable | **Any** URL from your league — your league homepage address bar is easiest, e.g. `https://www44.myfantasyleague.com/2026/home/19186` |
 
-**Settings → Secrets and variables → Actions → New repository secret:**
+   That's it — no need to figure out your host, season year, or league ID
+   separately. The script pulls all three out of whatever URL you paste.
 
-| Name | Value |
-|---|---|
-| `MFL_USERNAME` | Your MFL account username |
-| `MFL_PASSWORD` | Your MFL account password |
+3. Complete the two **"before you turn this on"** steps below.
+4. **Actions tab → "MFL Waiver Order Nightly" → Run workflow**, leave
+   **dry_run** checked. Open the run's log and confirm it logged your real
+   franchises and a sensible target order without errors.
+5. Run it again with **dry_run unchecked** to do one real, on-demand
+   update, then check your league homepage's Waiver Wire Order widget.
+6. Done — it now runs on its own every night.
 
-Set these yourself directly in GitHub's UI (or via `gh secret set NAME`
-in your own terminal) — nothing in this repo or its automation ever
-needs to see these values outside of that one write.
+## Before you turn this on
 
-### 2. (Optional) Repository variables
+Two things need to be true in MFL's own settings first, or this bot will
+either have nothing sensible to start from, or will end up fighting MFL's
+own auto-adjustment:
 
-These already default to the right values for this league in the
-workflow, but you can override them under **Settings → Secrets and
-variables → Actions → Variables** if the league ID, host, or year ever
-changes:
+**1. Set an initial waiver order once.** Visit your league's own
+**Custom Waiver Order Setup** page — take the `MFL_LEAGUE_URL` you set
+above and swap its path for `csetup?L={your league ID}&C=WAIVORD` — and
+set *some* starting order, even an arbitrary one. The bot only *reorders*
+whatever's already there; it doesn't invent an order from nothing.
 
-| Name | Default |
-|---|---|
-| `MFL_HOST` | `www44` |
-| `MFL_YEAR` | `2026` |
-| `MFL_LEAGUE` | `19186` |
+**2. Turn off MFL's own automatic waiver-order adjustment.** Same idea,
+different page: `csetup?L={your league ID}&C=WAIVREQ#WAIVER_ORDER_SAME`.
+Under **"Waiver Request Sort Order"** select **"Same"** (*"Every round is
+same order, using the criteria below"*). MFL's other three options
+(Reverse, Weekly Rolling, Season-long Rolling) all have MFL silently
+recalculating the order itself — if one of those stays on, it'll
+periodically overwrite whatever this bot sets. This also matches what the
+Custom Waiver Order Setup page itself warns: a custom order under Season
+Long or Weekly Rolling only seeds the *initial* order, then gets replaced
+the moment waivers actually process.
 
-### 3. Test it manually before trusting the schedule
+## Each new NFL season
 
-**Actions tab → "MFL Waiver Order Nightly" → Run workflow.** Leave
-**dry_run** checked (the default) for the first run — it logs the current
-order, the transactions it found, and the computed target order, but does
-**not** submit anything. Open the run's logs and confirm:
-
-- Login succeeded (no "password field still present" error).
-- The transactions export returned a sensible number of records.
-- The computed target order looks right.
-
-Once that looks correct, run it again with **dry_run unchecked** to do a
-real (one-time, on-demand) update, then check the league homepage's
-Waiver Wire Order widget to confirm it went live.
+MFL has commissioners transfer/export their league forward to a new
+season every year. The host and league ID stay the same — only the year
+changes. When you do that transfer, update the `MFL_LEAGUE_URL` variable
+(**Settings → Secrets and variables → Actions → Variables**) to point at
+the new season's URL. That's the only yearly maintenance this needs.
 
 ## Schedule
 
 The workflow fires at both `07:00` and `08:00` UTC every day — one of
 those is 2am Central depending on Daylight Saving Time, the other is 3am
-or 1am. The script itself checks the real Central-time clock and no-ops
-on whichever of the two firings isn't actually 2am, so only one real
-update happens per night. This is the standard workaround for GitHub
-Actions' `schedule` trigger being UTC-only with no DST awareness.
+or 1am. The script checks the real Central-time clock and no-ops on
+whichever firing isn't actually 2am, so only one real update happens per
+night. (Want a different time or timezone? Edit the two `cron:` lines in
+`.github/workflows/waiver-order.yml` and the `America/Chicago` /
+`hour !== 2` check in `scripts/update-waiver-order.mjs` — this is the one
+piece that isn't a plain setting, since covering an arbitrary hour/timezone
+combination across DST needs its own cron lines.)
 
-## Durability — read this
+## Why a real browser (Playwright), not plain HTTP calls
 
-MFL's own setup page notes: if this league uses **Season Long Rolling**
-or **Weekly Rolling** waiver order, a custom order only seeds the
-*initial* order — the first time waivers actually process, MFL replaces
-it with its own rolling-order calculation, silently. If the league is
-**not** on a rolling type, the custom order persists exactly as set. If
-you want to confirm which type this league uses, check **League Setup →
-Waivers/Free Agents Setup**.
-
-## Files
-
-- `.github/workflows/waiver-order.yml` — the schedule + manual trigger.
-- `scripts/update-waiver-order.mjs` — the actual automation (Playwright).
-- `package.json` — dependencies (`playwright`).
+An earlier version of this ran as a Cloudflare Worker doing plain
+`fetch()` calls. It reliably got served a stripped, logged-out-looking
+page from MFL — even with a cookie string captured directly from a real,
+working browser session, which rules out "wrong cookie" as the cause.
+Separately, MFL turned out to treat "logged in" and "acting as
+commissioner for this league" as two different session states — a
+league-scoped "Become Commissioner" step is required even for an account
+that already *is* the commissioner. A plain login API call has no way to
+discover or follow that step; a real, continuous browser session does the
+whole thing — login, become-commissioner, read, write — exactly like a
+person clicking through the site, so nothing about authentication is
+ever guessed or reconstructed by hand.
 
 ## How the write itself works
 
@@ -100,14 +102,36 @@ commissioner-only HTML form a person would use
 (`csetup?L={league}&C=WAIVORD`), reading its hidden fields
 (`input_expires`, `WAIVER_ORDER_LEAGUE_1..N`, etc.) fresh on every run and
 POSTing the reordered list back, executed as a real `fetch()` call from
-inside the authenticated browser tab (so it carries the exact same
-session as everything else in the run). No UI clicking/dragging is
-needed — MFL accepts a direct form POST once you're authenticated as
-commissioner in that session.
+inside the authenticated browser tab. No UI clicking/dragging needed —
+MFL accepts a direct form POST once the session is authenticated as
+commissioner.
 
 ## Reading the acquired-transaction data
 
 Uses MFL's documented `export?TYPE=transactions&JSON=1` API
-(`TRANS_TYPE=WAIVER,BBID_WAIVER,FREE_AGENT`) rather than scraping the
-HTML transactions report — structured, official data instead of a
-regex against a rendered page.
+(`TRANS_TYPE=WAIVER,BBID_WAIVER,FREE_AGENT`) — structured, official data,
+not scraping of a rendered HTML report.
+
+## Files
+
+- `.github/workflows/waiver-order.yml` — the schedule + manual trigger.
+- `scripts/update-waiver-order.mjs` — the automation itself (Playwright).
+- `home-page-status-snippet.html` — optional, see below.
+- `package.json` — dependencies (`playwright`).
+
+## Optional: status widget for your MFL homepage
+
+`home-page-status-snippet.html` is a small, commissioner-only status box
+you can paste into an MFL Home Page Message — shows when this last ran
+and reminds you each off-season to check `MFL_LEAGUE_URL` before the new
+year starts. It changes nothing about whether the automation runs; it's
+purely a display. Read the comments at the top of that file before using
+it — it explains plainly what the commissioner-only check does and
+doesn't actually hide.
+
+## Support
+
+This is set up as a GitHub template on purpose — click **Use this
+template**, add your three settings, done. If you'd rather not use GitHub
+at all, open an issue on this repo and say so; if enough people ask for a
+different setup path, it's worth building one.

@@ -1,0 +1,67 @@
+<!--
+  OPTIONAL — this is NOT the automation trigger. The actual waiver-order
+  update runs entirely on GitHub Actions' own schedule (see
+  .github/workflows/waiver-order.yml) and needs no page load, no button,
+  and no code on MFL's site at all to function. This snippet is purely a
+  small commissioner-only status/reminder box you can paste into an MFL
+  Home Page Message.
+
+  HOW THE COMMISSIONER-ONLY CHECK WORKS, AND WHAT IT DOESN'T HIDE:
+  MFL exposes a client-side `franchise_id` variable on every page. The
+  script below only renders its box when franchise_id is "0000", the
+  placeholder MFL uses for the commissioner acting without an owned
+  franchise. If your commissioner account also owns a real franchise (a
+  very common setup), your franchise_id will be that franchise's own ID
+  instead (e.g. "0003") — check yours under Franchise Information and
+  change the value below if "0000" never shows the box for you.
+  Either way, this check only controls whether the box RENDERS for a
+  given viewer. It does NOT hide the underlying HTML/JS itself — anyone
+  who views page source can see this code and the fact that it checks a
+  franchise_id. It contains no secrets (no username, password, token), so
+  that's an acceptable amount of exposure — don't extend this snippet to
+  hold anything sensitive.
+
+  TO USE: paste this into a league Home Page Message (For Commissioners →
+  Appearance Setup → Home Page Modules and Tabs Setup), marked as a
+  Header or Footer message. Turn off "Advanced Editor" under Appearance
+  Setup → Reports and Security Settings first, or MFL will mangle the raw
+  HTML/script when you save it. Then edit the two placeholders below:
+  OWNER/REPO for your own GitHub repo, and the franchise_id check above
+  if needed.
+-->
+<div id="mfl-waiver-status" style="display:none;margin:8px 0;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-family:sans-serif;font-size:12px;"></div>
+
+<script>
+(function () {
+  if (typeof franchise_id === 'undefined' || franchise_id !== '0000') return; // commissioner-only, see comment above
+
+  var OWNER = 'YOUR-GITHUB-USERNAME'; // <-- edit
+  var REPO = 'YOUR-REPO-NAME';        // <-- edit
+
+  var box = document.getElementById('mfl-waiver-status');
+  box.style.display = 'block';
+  box.textContent = 'Waiver order auto-updates nightly at 2am Central via GitHub Actions — this box is just a status display, not a control.';
+
+  // Off-season reminder: MFL leagues get transferred to a new season each
+  // year (same host/league ID, new year in the URL). Roughly Feb–July,
+  // nudge whoever's reading this to make sure MFL_LEAGUE_URL has been
+  // updated for the upcoming season.
+  var month = new Date().getMonth() + 1; // 1-12
+  if (month >= 2 && month <= 7) {
+    box.textContent += ' New season coming — double-check MFL_LEAGUE_URL in your repo\'s Settings once you transfer this league forward.';
+  }
+
+  // Show the latest GitHub Actions run status/time, once this repo is
+  // public (the Actions API needs auth for private repos, so this just
+  // quietly does nothing until then — the static text above still shows).
+  fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/actions/runs?per_page=1')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      var run = data && data.workflow_runs && data.workflow_runs[0];
+      if (!run) return;
+      var when = new Date(run.updated_at).toLocaleString();
+      box.textContent += ' Last run: ' + run.status + '/' + (run.conclusion || 'pending') + ' at ' + when + '.';
+    })
+    .catch(function () {}); // private repo, offline, rate-limited, etc. — fine, static text still shown
+})();
+</script>
