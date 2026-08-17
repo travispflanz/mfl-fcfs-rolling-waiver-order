@@ -55,3 +55,4 @@ jobs:
           # useful for testing at any time of day; the schedule trigger does not.
           FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' }}
         run: npm run update
+
