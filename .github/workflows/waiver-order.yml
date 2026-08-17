@@ -1,0 +1,57 @@
+name: MFL Waiver Order Nightly
+
+# Runs entirely on GitHub's own hosted runners — never on any local
+# machine. Cloudflare's cron is UTC-only with no DST awareness, and so is
+# GitHub Actions' `schedule` trigger, so we register both UTC offsets that
+# "2am Central" can fall on across the year (CDT = UTC-5, CST = UTC-6) and
+# let the script's own Central-time check no-op the one that isn't really
+# 2am. Net effect: exactly one real run per night.
+on:
+  schedule:
+    - cron: '0 7 * * *'   # 2am Central Daylight Time (UTC-5)
+    - cron: '0 8 * * *'   # 2am Central Standard Time (UTC-6)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — compute and log the target order but do not submit it'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mfl-waiver-order
+  cancel-in-progress: false
+
+jobs:
+  update-waiver-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Install Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      - name: Update waiver order
+        env:
+          MFL_HOST: ${{ vars.MFL_HOST }}
+          MFL_YEAR: ${{ vars.MFL_YEAR }}
+          MFL_LEAGUE: ${{ vars.MFL_LEAGUE }}
+          MFL_USERNAME: ${{ secrets.MFL_USERNAME }}
+          MFL_PASSWORD: ${{ secrets.MFL_PASSWORD }}
+          # Manual runs (workflow_dispatch) default to a dry run for safety;
+          # the nightly schedule always runs for real (DRY_RUN=false).
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          # Manual runs bypass the "is it really 2am Central" guard so they're
+          # useful for testing at any time of day; the schedule trigger does not.
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+        run: npm run update

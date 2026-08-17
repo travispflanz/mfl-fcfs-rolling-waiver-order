@@ -1,0 +1,13 @@
+{
+  "name": "kckeeper-waiver-order",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nightly automation that sets the MFL Custom Waiver Order for the Kansas City Keeper league by reverse recency of Acquired transactions. Runs on GitHub Actions only.",
+  "type": "module",
+  "scripts": {
+    "update": "node scripts/update-waiver-order.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
