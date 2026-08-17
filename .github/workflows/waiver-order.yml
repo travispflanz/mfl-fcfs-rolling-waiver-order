@@ -50,15 +50,18 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
+      # Confirmed live (2026-08-17): GitHub's stock ubuntu-latest image
+      # already has every OS-level library Chromium needs, so a cache hit
+      # can skip `playwright install-deps` entirely — cut a cache-hit run
+      # from ~2m to ~25s. That step (apt-get) doesn't benefit from the
+      # cache above regardless, since installed OS packages don't persist
+      # between runs on a fresh Actions VM — only this file-based Chromium
+      # binary path does. If a future runner image ever lacks something
+      # Chromium needs, this step is what to reintroduce (guarded the same
+      # way `Install Chromium` is above).
       - name: Install Chromium (Playwright) — cache miss only
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
-
-      # EXPERIMENT (temporary): on a cache hit, skip install-deps entirely
-      # and see whether GitHub's stock ubuntu-latest image already has
-      # what Chromium needs. install-deps (apt-get) took ~1m46s even on a
-      # cache hit in testing — if the browser launches fine without it,
-      # that's the real win; if not, this step needs to come back.
 
       - name: Update waiver order
         env:

@@ -94,8 +94,9 @@ the new season's URL. That's the only yearly maintenance this needs.
 
 Checks every **5 minutes** by default — GitHub Actions' shortest allowed
 interval, so that's as close to real-time as this can get. Each check is
-cheap: it only actually submits a change to MFL when the computed order
-is different from what's already there, otherwise it's a quick no-op.
+cheap: once the Chromium browser binary is cached (automatic, after the
+first run), a no-op check — nothing changed, nothing submitted — takes
+about **25 seconds** end to end, confirmed live.
 
 MFL itself has no push/webhook mechanism for transactions (confirmed —
 even MFL's own official "Text Alerts" don't cover waiver/free-agent
@@ -103,12 +104,17 @@ pickups, and a well-known third-party MFL app's own developers describe
 their "live" updates as periodic polling too), so checking on an
 interval is the closest any tool can get to instant.
 
-Want to check less often — e.g. to go easier on your Actions minutes
-while this repo is still private? Edit the one `cron:` line in
-`.github/workflows/waiver-order.yml`. It's a plain 5-field cron
-expression: `*/5 * * * *` is every 5 minutes, `*/30 * * * *` is every 30,
-`0 * * * *` is hourly, and so on — no timezone/DST math involved, since
-this no longer targets one specific time of day.
+**On Actions minutes:** 5-minute checks work out to roughly 288 runs/day
+— at ~25s each, about 2 hours of runner time per day, ~3,600
+minutes/month. Public repos get unlimited free minutes on standard
+runners, so this is a non-issue once you flip your repo public. Kept
+private, it'll exceed GitHub's free private-repo minutes allowance
+(2,000/month) and start drawing from your account's paid minutes. Want
+to check less often instead? Edit the one
+`cron:` line in `.github/workflows/waiver-order.yml` — a plain 5-field
+cron expression: `*/5 * * * *` is every 5 minutes, `*/30 * * * *` is
+every 30, `0 * * * *` is hourly, and so on. No timezone/DST math
+involved, since this no longer targets one specific time of day.
 
 ## Why a real browser (Playwright), not plain HTTP calls
 
