@@ -200,12 +200,20 @@ async function activateCommissionerModeIfNeeded(page) {
     return false;
   }
   const href = await link.getAttribute('href');
-  log(`Found "Become Commissioner" link (href="${href}"). Following it.`);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
-    link.click(),
-  ]);
+  log(`Found "Become Commissioner" link (href="${href}"). Navigating directly to it — it's a plain <a href>`);
+  log(`sitting in a hover-only dropdown, so a simulated .click() fails Playwright's visibility/viewport checks.`);
+  await page.goto(href, { waitUntil: 'domcontentloaded' });
   log('After following "Become Commissioner":', page.url(), '—', await page.title());
+
+  // The href's path is literally "logout" — sanity-check we're still an
+  // authenticated session afterward and didn't just get logged all the way out.
+  const loggedOut = await page.locator('input[name="PASSWORD"]').count();
+  if (loggedOut > 0) {
+    throw new Error(
+      `After navigating to the "Become Commissioner" link, the session looks logged out ` +
+        `(a password field is present again) at url=${page.url()}.`
+    );
+  }
   return true;
 }
 
