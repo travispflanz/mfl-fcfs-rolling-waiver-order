@@ -73,19 +73,22 @@ they're already correct by the time the automation can possibly run
 
    > **Use this template** → **Create a new repository**
 
-   Give it any name, and pick **Private**
-   — your `MFL_USERNAME`/`MFL_PASSWORD` secrets themselves stay hidden
-   either way, but a Public repo's Actions run logs are visible to
-   literally anyone on the internet, not just you, so Private is the
-   safer default. (Public repos get unlimited free Actions minutes;
-   Private ones get a limited free allowance and then draw from your
-   account's paid minutes — at this bot's hourly default that's well
-   within the free allowance either way, only a real concern if you
-   later turn the check frequency up a lot.) Click **Create
+   Give it any name, pick **Private**, then click **Create
    repository**. You now have your own independent copy; nothing you do
    in it ever touches this original repo.
 
-3. In your new repo:
+   (Why Private: your `MFL_USERNAME`/`MFL_PASSWORD` secrets themselves
+   stay hidden either way, but a Public repo's Actions run logs are
+   visible to literally anyone on the internet, not just you, so
+   Private is the safer default. Public repos do get unlimited free
+   Actions minutes vs. Private's limited free allowance — but at this
+   bot's hourly default that's well within the free allowance either
+   way, only a real concern if you later turn the check frequency up a
+   lot.)
+
+3. GitHub takes you straight to your new repo after clicking **Create
+   repository** — that's where the next steps happen, not back here on
+   this template. From there:
 
    > **Settings** *(top row, after Code / Issues / Pull requests /
    > Actions)* → **Secrets and variables** → **Actions**
@@ -121,12 +124,11 @@ they're already correct by the time the automation can possibly run
    Confirm it logged your real franchises and a sensible target order,
    with no errors.
 
-5. Run it again the same way, but this time **uncheck dry_run** in that
-   same panel before clicking the green **Run workflow** button — this
-   does one real, one-time update. Check your league homepage's Waiver
-   Wire Order widget to confirm it went live.
-
-6. Done — from here on it runs on its own automatically.
+5. Done — that's it, no separate "go live" step. If the dry run looked
+   right, the next real scheduled run (within the hour, by default)
+   does the first actual update on its own; you don't need to manually
+   trigger a real run yourself. Check your league homepage's Waiver
+   Wire Order widget afterward to confirm it went live.
 
 ### What actually turns this on
 
@@ -135,9 +137,9 @@ There's no separate "activate" switch — the schedule in
 workflow file exists on your repo's default branch, which happens the
 moment you create it from the template, and (b) Actions is enabled for
 your repo, which is the default. In practice that means it can start
-running for real well before you'd naturally get to steps 4/5 — which
-is exactly why the MFL-side settings in step 1 come first: so there's
-nothing for it to get wrong even if it
+running for real well before you'd naturally get to step 4's dry run —
+which is exactly why the MFL-side settings in step 1 come first: so
+there's nothing for it to get wrong even if it
 fires before you finish the rest of this checklist. (One caveat seen
 during testing: a *brand-new* repo's workflow can take a short moment to
 be indexed by GitHub after the first push — if step 4 shows no "MFL
