@@ -12,8 +12,10 @@ franchise picks up a player either way, it drops to the bottom of the
 list. Whoever's gone longest without an add (or never has) sits at the
 top. (MFL tracks other transaction types too — trades, IR moves, taxi
 squad, auctions — none of those affect waiver priority and this bot
-ignores them entirely.) It runs entirely on **GitHub's own hosted
-runners** — no server, no local machine, nothing that depends on your
+ignores them entirely.)
+
+**mfl-fcfs-rolling-waiver-order** runs entirely on GitHub's own hosted
+runners — no server, no local machine, nothing that depends on your
 computer being on.
 
 ## Quick start
