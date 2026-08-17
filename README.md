@@ -27,21 +27,18 @@ they're already correct by the time the automation can possibly run
 1. Two settings to change in the **Commissioner Setup** area of your
    MyFantasyLeague.com site — nothing to do in GitHub yet. Log into MFL
    as commissioner, open your league, and click **Commissioner Setup**
-   (top navigation menu — only visible to commissioners). Or skip the
-   menu-hunting and jump straight to each page below by taking your
-   league's URL and swapping its path.
+   (top navigation menu — only visible to commissioners).
 
-   - **Set an initial waiver order.** On **Commissioner Setup**, look
-     under "ADD/DROP AND WAIVERS SETUP" for **Custom Waiver Order
-     Setup** — or go directly to `csetup?L={your league ID}&C=WAIVORD`.
-     Set *some* starting order there, even an arbitrary one. This bot
-     only *reorders* whatever's already there — it doesn't invent an
-     order from nothing.
-   - **Turn off MFL's own automatic waiver-order adjustment.** Same
-     area, look for **Waiver Request Setup** — or go directly to
-     `csetup?L={your league ID}&C=WAIVREQ`. Under **"Waiver Request Sort
-     Order"** select **"Same"** (*"Every round is same order, using the
-     criteria below"*). MFL's other three options (Reverse, Weekly
+   - **Set an initial waiver order.** On the **Commissioner Setup** page,
+     look under "ADD/DROP AND WAIVERS SETUP" and click **Custom Waiver
+     Order Setup**. Set *some* starting order there, even an arbitrary
+     one. This bot only *reorders* whatever's already there — it
+     doesn't invent an order from nothing.
+   - **Turn off MFL's own automatic waiver-order adjustment.** Back on
+     **Commissioner Setup**, same "ADD/DROP AND WAIVERS SETUP" section,
+     click **Waiver Request Setup**. Find **"Waiver Request Sort
+     Order"** and select **"Same"** (*"Every round is same order, using
+     the criteria below"*). MFL's other three options (Reverse, Weekly
      Rolling, Season-long Rolling) all have MFL silently recalculating
      the order itself — if one of those stays on, it'll periodically
      overwrite whatever this bot sets. (The automation checks for this
