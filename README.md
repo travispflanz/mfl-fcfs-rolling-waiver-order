@@ -29,24 +29,22 @@ computer being on.
 2. In your new repo, click the **Settings** tab (top row of the repo
    page, after Code / Issues / Pull requests / Actions). In the left
    sidebar, click **Secrets and variables**, then **Actions**. That page
-   has two sub-tabs near the top, **Secrets** and **Variables** — you
-   need one thing on each:
+   has two sub-tabs near the top, **Secrets** and **Variables** — on the
+   Secrets tab, click **New repository secret** for each of the first
+   two rows below; on the Variables tab, click **New repository
+   variable** for the third:
 
-   - On the **Secrets** tab, click **New repository secret**. Name:
-     `MFL_USERNAME`, value: your MFL account username. Click **Add
-     secret**. Repeat once more — name `MFL_PASSWORD`, value your MFL
-     password.
-   - Click over to the **Variables** tab (same page, next to Secrets).
-     Click **New repository variable**. Name: `MFL_LEAGUE_URL`, value:
-     **any** URL from your league — your league homepage's address bar
-     is easiest, e.g. `https://www44.myfantasyleague.com/2026/home/19186`.
-     Click **Add variable**.
+   | Name | Type | Value |
+   |---|---|---|
+   | `MFL_USERNAME` | Secret | Your MFL account username |
+   | `MFL_PASSWORD` | Secret | Your MFL account password |
+   | `MFL_LEAGUE_URL` | Variable | **Any** URL from your league — your league homepage address bar is easiest, e.g. `https://www44.myfantasyleague.com/2026/home/19186` |
 
    No need to figure out your host, season year, or league ID
    separately — the script pulls all three out of whatever URL you
    paste.
 
-3. Two settings need to change on **MFL's own site** — nothing more to
+3. Two settings need to change on **MFL's own site** — nothing to
    do in GitHub for this step:
 
    - **Set an initial waiver order.** Take the league URL you just used
