@@ -18,49 +18,63 @@ computer being on.
 
 ## Quick start
 
-1. Click **Use this template** (top of this repo) → create your own copy.
-2. In your new repo, go to **Settings → Secrets and variables → Actions**
-   and add three values:
+1. Click **Use this template** — green button, top-right above the file
+   list on this page — then **Create a new repository**. Give it any
+   name, pick Public or Private, click **Create repository**. You now
+   have your own independent copy; nothing you do in it ever touches
+   this original repo.
 
-   | Name | Type | Value |
-   |---|---|---|
-   | `MFL_USERNAME` | Secret | Your MFL account username |
-   | `MFL_PASSWORD` | Secret | Your MFL account password |
-   | `MFL_LEAGUE_URL` | Variable | **Any** URL from your league — your league homepage address bar is easiest, e.g. `https://www44.myfantasyleague.com/2026/home/19186` |
+2. In your new repo, click the **Settings** tab (top row of the repo
+   page, after Code / Issues / Pull requests / Actions). In the left
+   sidebar, click **Secrets and variables**, then **Actions**. That page
+   has two sub-tabs near the top, **Secrets** and **Variables** — you
+   need one thing on each:
 
-   That's it — no need to figure out your host, season year, or league ID
-   separately. The script pulls all three out of whatever URL you paste.
+   - On the **Secrets** tab, click **New repository secret**. Name:
+     `MFL_USERNAME`, value: your MFL account username. Click **Add
+     secret**. Repeat once more — name `MFL_PASSWORD`, value your MFL
+     password.
+   - Click over to the **Variables** tab (same page, next to Secrets).
+     Click **New repository variable**. Name: `MFL_LEAGUE_URL`, value:
+     **any** URL from your league — your league homepage's address bar
+     is easiest, e.g. `https://www44.myfantasyleague.com/2026/home/19186`.
+     Click **Add variable**.
 
-3. Complete the two **"before you turn this on"** steps below.
-4. **Actions tab → "MFL Waiver Adjustment Check" → Run workflow**, leave
-   **dry_run** checked. Open the run's log and confirm it logged your real
-   franchises and a sensible target order without errors.
-5. Run it again with **dry_run unchecked** to do one real, on-demand
-   update, then check your league homepage's Waiver Wire Order widget.
-6. Done — it now runs on its own every night.
+   No need to figure out your host, season year, or league ID
+   separately — the script pulls all three out of whatever URL you
+   paste.
 
-## Before you turn this on
+3. Two settings need to change on **MFL's own site** — nothing more to
+   do in GitHub for this step:
 
-Two things need to be true in MFL's own settings first, or this bot will
-either have nothing sensible to start from, or will end up fighting MFL's
-own auto-adjustment:
+   - **Set an initial waiver order.** Take the league URL you just used
+     above and change its path to `csetup?L={your league ID}&C=WAIVORD`
+     (your league's **Custom Waiver Order Setup** page), then set *some*
+     starting order there, even an arbitrary one. This bot only
+     *reorders* whatever's already there — it doesn't invent an order
+     from nothing.
+   - **Turn off MFL's own automatic waiver-order adjustment.** Same
+     idea, different page: `csetup?L={your league ID}&C=WAIVREQ`. Under
+     **"Waiver Request Sort Order"** select **"Same"** (*"Every round is
+     same order, using the criteria below"*). MFL's other three options
+     (Reverse, Weekly Rolling, Season-long Rolling) all have MFL
+     silently recalculating the order itself — if one of those stays
+     on, it'll periodically overwrite whatever this bot sets.
 
-**1. Set an initial waiver order once.** Visit your league's own
-**Custom Waiver Order Setup** page — take the `MFL_LEAGUE_URL` you set
-above and swap its path for `csetup?L={your league ID}&C=WAIVORD` — and
-set *some* starting order, even an arbitrary one. The bot only *reorders*
-whatever's already there; it doesn't invent an order from nothing.
+4. Back in GitHub, click the **Actions** tab. In the left sidebar, click
+   **MFL Waiver Adjustment Check**. On the right, click the **Run
+   workflow** dropdown, leave the **dry_run** checkbox checked (it's
+   checked by default), click the green **Run workflow** button inside
+   that dropdown. Wait about a minute, click into the run that appears,
+   and open its log — confirm it logged your real franchises and a
+   sensible target order, with no errors.
 
-**2. Turn off MFL's own automatic waiver-order adjustment.** Same idea,
-different page: `csetup?L={your league ID}&C=WAIVREQ#WAIVER_ORDER_SAME`.
-Under **"Waiver Request Sort Order"** select **"Same"** (*"Every round is
-same order, using the criteria below"*). MFL's other three options
-(Reverse, Weekly Rolling, Season-long Rolling) all have MFL silently
-recalculating the order itself — if one of those stays on, it'll
-periodically overwrite whatever this bot sets. This also matches what the
-Custom Waiver Order Setup page itself warns: a custom order under Season
-Long or Weekly Rolling only seeds the *initial* order, then gets replaced
-the moment waivers actually process.
+5. Run it again the same way, but this time **uncheck dry_run** before
+   clicking **Run workflow** — this does one real, one-time update.
+   Check your league homepage's Waiver Wire Order widget to confirm it
+   went live.
+
+6. Done — from here on it runs on its own automatically.
 
 ## Each new NFL season
 
