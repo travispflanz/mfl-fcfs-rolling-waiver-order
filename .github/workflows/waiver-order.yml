@@ -54,9 +54,11 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: Install Chromium's OS-level dependencies — cache hit
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      # EXPERIMENT (temporary): on a cache hit, skip install-deps entirely
+      # and see whether GitHub's stock ubuntu-latest image already has
+      # what Chromium needs. install-deps (apt-get) took ~1m46s even on a
+      # cache hit in testing — if the browser launches fine without it,
+      # that's the real win; if not, this step needs to come back.
 
       - name: Update waiver order
         env:
