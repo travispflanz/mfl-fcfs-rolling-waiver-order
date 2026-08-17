@@ -1,4 +1,4 @@
-name: MFL Waiver Order Nightly
+name: MFL Waiver Adjustment Check
 
 # Runs entirely on GitHub's own hosted runners — never on any local
 # machine. Cloudflare's cron is UTC-only with no DST awareness, and so is

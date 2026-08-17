@@ -1,18 +1,20 @@
 # MFL FCFS + Rolling Waiver Order
 
 Automatically keeps a MyFantasyLeague.com (MFL) league's **Custom Waiver
-Order** on one continuously-updating rolling priority list — combining
-**both** of MFL's separate acquisition systems into a single order:
+Order** on one continuously-updating rolling priority list, driven by two
+specific acquisition types MFL tracks separately:
 
 - **First-Come-First-Served free agency** (instant pickups)
-- **Waivers** (scheduled-priority claims)
+- **Waiver free agency** (scheduled-priority claims)
 
-MFL treats these as two different systems. This bot doesn't care which one
-someone used — the moment *any* franchise picks up a player either way, it
-drops to the bottom of the list. Whoever's gone longest without an add (or
-never has) sits at the top. It runs nightly, entirely on **GitHub's own
-hosted runners** — no server, no local machine, nothing that depends on
-your computer being on.
+This bot doesn't care which of those two someone used — the moment *any*
+franchise picks up a player either way, it drops to the bottom of the
+list. Whoever's gone longest without an add (or never has) sits at the
+top. (MFL tracks other transaction types too — trades, IR moves, taxi
+squad, auctions — none of those affect waiver priority and this bot
+ignores them entirely.) It runs entirely on **GitHub's own hosted
+runners** — no server, no local machine, nothing that depends on your
+computer being on.
 
 ## Quick start
 
@@ -30,7 +32,7 @@ your computer being on.
    separately. The script pulls all three out of whatever URL you paste.
 
 3. Complete the two **"before you turn this on"** steps below.
-4. **Actions tab → "MFL Waiver Order Nightly" → Run workflow**, leave
+4. **Actions tab → "MFL Waiver Adjustment Check" → Run workflow**, leave
    **dry_run** checked. Open the run's log and confirm it logged your real
    franchises and a sensible target order without errors.
 5. Run it again with **dry_run unchecked** to do one real, on-demand
