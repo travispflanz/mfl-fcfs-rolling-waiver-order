@@ -7,12 +7,12 @@ specific acquisition types MFL tracks separately:
 - **First-Come-First-Served free agency** (instant pickups)
 - **Waiver free agency** (scheduled-priority claims)
 
-This bot doesn't care which of those two someone used — usually within
-minutes of *any* franchise picking up a player either way, it drops to
-the bottom of the list. Whoever's gone longest without an add (or never
-has) sits at the top. (MFL tracks other transaction types too — trades,
-IR moves, taxi squad, auctions — none of those affect waiver priority
-and this bot ignores them entirely.)
+This bot doesn't care which of those two someone used — within an hour
+(by default) of *any* franchise picking up a player either way, it
+drops to the bottom of the list. Whoever's gone longest without an add
+(or never has) sits at the top. (MFL tracks other transaction types too
+— trades, IR moves, taxi squad, auctions — none of those affect waiver
+priority and this bot ignores them entirely.)
 
 **mfl-fcfs-rolling-waiver-order** runs entirely on GitHub's own hosted
 runners — no server, no local machine, nothing that depends on your
@@ -24,18 +24,29 @@ Do these in order — the MFL-side settings come first on purpose, so
 they're already correct by the time the automation can possibly run
 (see "What actually turns this on" below).
 
-1. One setting to change in the **Commissioner Setup** area of your
+1. Settings to change in the **Commissioner Setup** area of your
    MyFantasyLeague.com site — nothing to do in GitHub yet. Log into MFL
    as commissioner, open your league, and click **Commissioner Setup**
    (top navigation menu — only visible to commissioners). Under
-   "ADD/DROP AND WAIVERS SETUP", click **Waiver Request Setup**. Find
-   **"Waiver Request Sort Order"** and select **"Same"** (*"Every round
-   is same order, using the criteria below"*). MFL's other three options
-   (Reverse, Weekly Rolling, Season-long Rolling) all have MFL silently
-   recalculating the order itself — if one of those stays on, it'll
-   periodically overwrite whatever this bot sets. (The automation checks
-   for this on every run and logs a warning if it's not set to "Same" —
-   see "Settings-compatibility check" below.)
+   "ADD/DROP AND WAIVERS SETUP", click **Waiver Request Setup**, then:
+
+   - Find **"Waiver Request Sort Order"** and select either **"Same"**
+     (a straight line: round 1, 2, ... N, then repeats the same way
+     every round) or **"Reverse"** (a snake: 1...N, then N...1,
+     alternating each round). Either is fine — what actually matters is
+     that MFL isn't left on **"Weekly Rolling"** or **"Season-long
+     Rolling"**, which both have MFL recalculating the order itself and
+     will eventually overwrite whatever this bot sets.
+   - Just below that, find the six **"Waiver Sort Criteria"** dropdowns
+     (#1 through #6) and set **all six to "None."** MFL's own label
+     text for "Same"/"Reverse" says they use "the criteria below" — so
+     if any of the six is left on a real criterion (standings, points,
+     etc.) instead of None, MFL can still use it to help compute the
+     order, which undoes the point just as surely as leaving Weekly/
+     Season-long Rolling on would.
+
+   (The automation checks all of this on every run and logs a warning
+   if anything's still off — see "Settings-compatibility check" below.)
 
    You don't need to separately set up an initial order on **Custom
    Waiver Order Setup** — confirmed live, that page always shows a
@@ -44,18 +55,18 @@ they're already correct by the time the automation can possibly run
    bot just adopts whatever's there as its starting point and reorders
    from there.
 
-2. Click **Use this template** — green button, top-right above the file
-   list on this page — then **Create a new repository**. Give it any
-   name, and pick **Private** — your `MFL_USERNAME`/`MFL_PASSWORD`
-   secrets themselves stay hidden either way, but a Public repo's Actions
-   run logs are visible to literally anyone on the internet, not just
-   you, so Private is the safer default. (One tradeoff: Public repos get
-   unlimited free Actions minutes, Private ones get a limited free
-   allowance and then draw from your account's paid minutes — checking
-   every 5 minutes adds up to roughly 3,600 minutes/month. Worth knowing
-   if that tips your choice.) Click **Create repository**. You now have
-   your own independent copy; nothing you do in it ever touches this
-   original repo.
+2. Above the file list on this page, click **Use this template**, then
+   **Create a new repository**. Give it any name, and pick **Private**
+   — your `MFL_USERNAME`/`MFL_PASSWORD` secrets themselves stay hidden
+   either way, but a Public repo's Actions run logs are visible to
+   literally anyone on the internet, not just you, so Private is the
+   safer default. (Public repos get unlimited free Actions minutes;
+   Private ones get a limited free allowance and then draw from your
+   account's paid minutes — at this bot's hourly default that's well
+   within the free allowance either way, only a real concern if you
+   later turn the check frequency up a lot.) Click **Create
+   repository**. You now have your own independent copy; nothing you do
+   in it ever touches this original repo.
 
 3. In your new repo, click the **Settings** tab (top row of the repo
    page, after Code / Issues / Pull requests / Actions). In the left
@@ -103,9 +114,9 @@ There's no separate "activate" switch — the schedule in
 workflow file exists on your repo's default branch, which happens the
 moment you create it from the template, and (b) Actions is enabled for
 your repo, which is the default. In practice that means it can start
-running for real within minutes of finishing step 2 — well before you'd
-naturally get to steps 4/5 — which is exactly why the MFL-side settings
-in step 1 come first: so there's nothing for it to get wrong even if it
+running for real well before you'd naturally get to steps 4/5 — which
+is exactly why the MFL-side settings in step 1 come first: so there's
+nothing for it to get wrong even if it
 fires before you finish the rest of this checklist. (One caveat seen
 during testing: a *brand-new* repo's workflow can take a short moment to
 be indexed by GitHub after the first push — if step 4 shows no "MFL
@@ -131,11 +142,12 @@ Two things worth knowing about failures specifically:
 
 ### Settings-compatibility check
 
-Every run checks whether MFL's own **Waiver Request Sort Order** is set
-to "Same" (the setting from step 1) before doing anything else. If it
-isn't, the run logs a clearly-marked warning explaining that MFL may
-silently overwrite whatever this bot sets — and still proceeds, rather
-than blocking, in case that's a deliberate choice.
+Every run checks MFL's own **Waiver Request Sort Order** (needs to be
+"Same" or "Reverse") and all six **Waiver Sort Criteria** (need to be
+"None") — the settings from step 1 — before doing anything else. If
+anything's off, the run logs a clearly-marked warning explaining that
+MFL may silently overwrite whatever this bot sets — and still proceeds,
+rather than blocking, in case that's a deliberate choice.
 
 ## Each new NFL season
 
@@ -147,17 +159,20 @@ the new season's URL. That's the only yearly maintenance this needs.
 
 ## Schedule
 
-Checks every **5 minutes** by default (GitHub Actions' shortest allowed
-interval — MFL has no push/webhook for transactions, confirmed, so
-polling on an interval is as close to real-time as this can get). Each
-check only actually submits a change when the computed order differs
-from what's already there; otherwise it's a fast no-op, ~25 seconds
-end to end.
+Checks **hourly** by default. MFL has no push/webhook for transactions
+(confirmed), so this is polling either way — hourly rather than
+GitHub Actions' 5-minute floor on purpose, since actual waiver
+processing itself runs on its own schedule (hours to days apart, not
+minutes), so checking more often than that doesn't change any real
+outcome. Each check only actually submits a change when the computed
+order differs from what's already there; otherwise it's a fast no-op,
+~25 seconds end to end.
 
-Want to check less often? Edit the one `cron:` line near the top of
+Want a different interval? Edit the one `cron:` line near the top of
 `.github/workflows/waiver-order.yml` — it's a standard 5-field cron
-expression (`*/5 * * * *` = every 5 minutes, `0 * * * *` = hourly, etc.).
-See GitHub's own [cron syntax reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+expression (`0 * * * *` = hourly, `*/5 * * * *` = every 5 minutes,
+GitHub's fastest allowed, etc.). See GitHub's own
+[cron syntax reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
 for the exact format and its quirks.
 
 ## Why a real browser (Playwright), not plain HTTP calls

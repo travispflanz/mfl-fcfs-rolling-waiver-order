@@ -1,16 +1,19 @@
 name: MFL Waiver Adjustment Check
 
 # Runs entirely on GitHub's own hosted runners — never on any local
-# machine. Checks every 5 minutes (GitHub Actions' shortest allowed
-# interval) whether the computed waiver order has changed and, if so,
-# submits it — otherwise it's a fast no-op (see arraysEqual() in
-# scripts/update-waiver-order.mjs). Want to check less often instead?
-# Edit the cron expression below — anything from "*/5 * * * *" (every 5
-# minutes) up is valid, e.g. "*/30 * * * *" for every 30 minutes, or
-# "0 * * * *" for hourly.
+# machine. Checks hourly by default whether the computed waiver order
+# has changed and, if so, submits it — otherwise it's a fast no-op (see
+# arraysEqual() in scripts/update-waiver-order.mjs). Hourly rather than
+# GitHub's 5-minute floor on purpose: actual waiver processing runs on
+# its own schedule (hours to days apart, not minutes), so checking more
+# often than that doesn't change any real outcome, just spends more
+# Actions minutes for no benefit. Want a different interval? Edit the
+# cron expression below — any standard 5-field cron works, e.g.
+# "*/5 * * * *" for GitHub's fastest (every 5 minutes), or
+# "*/30 * * * *" for every 30.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:

@@ -314,35 +314,65 @@ async function activateCommissionerModeIfNeeded(page) {
   return true;
 }
 
-// Confirmed live: MFL's "Waiver Request Sort Order" (csetup?C=WAIVREQ,
-// field WAIVER_ORDER) must be set to SAME ("Same: Every round is same
-// order, using the criteria below") for a custom order to actually
-// stick — the other three options (REVERSE, WEEKLY, ROTATE) all have
-// MFL recalculating the order itself, which will eventually overwrite
-// whatever this script sets. Warns loudly but doesn't block the run —
-// someone may have a deliberate reason to keep MFL's own rolling order,
-// and there's no one present to answer an interactive prompt anyway.
+// Confirmed live, and corrected by the league owner: MFL's "Waiver
+// Request Sort Order" (csetup?C=WAIVREQ, field WAIVER_ORDER) has to be
+// SAME ("straight-line": round 1, 2, ... N repeats every round) or
+// REVERSE ("snake": 1..N, then N..1, alternating) — both just apply
+// whatever order this script submits across a waiver run's rounds
+// without MFL recalculating anything on its own. WEEKLY and ROTATE
+// actively recompute the order themselves and will eventually overwrite
+// whatever this script sets.
+//
+// That alone isn't sufficient, though: the six "Waiver Sort Criteria"
+// dropdowns (WAIVER_SORT_0..5) feed the *starting* order SAME/REVERSE
+// apply each round — MFL's own label text says as much ("using the
+// criteria below"). If any of the six is left on a real criterion
+// (standings, points, etc.) instead of "None", MFL uses that criterion
+// to help (re)compute the order, which can just as easily undo what
+// this script submits. All six need to be "None" too.
+//
+// Warns loudly but doesn't block the run either way — someone may have
+// a deliberate reason to keep MFL's own logic, and there's no one
+// present to answer an interactive prompt on an unattended run anyway.
 async function warnIfWaiverOrderTypeIncompatible(page) {
   const url = `${BASE}/csetup?L=${LEAGUE}&C=WAIVREQ`;
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  const checked = await page.evaluate(() => {
-    const el = document.querySelector('input[name="WAIVER_ORDER"]:checked');
-    return el ? el.value : null;
+  const { order, sortCriteria } = await page.evaluate(() => {
+    const orderEl = document.querySelector('input[name="WAIVER_ORDER"]:checked');
+    const sortCriteria = [];
+    for (let i = 0; i < 6; i++) {
+      const sel = document.querySelector(`select[name="WAIVER_SORT_${i}"]`);
+      sortCriteria.push(sel ? sel.value : null);
+    }
+    return { order: orderEl ? orderEl.value : null, sortCriteria };
   });
 
-  if (checked === null) {
+  const problems = [];
+  if (order === null) {
     log(`Warning: could not read the Waiver Request Sort Order setting at ${url} — page may have changed.`);
     return;
   }
-  if (checked !== 'SAME') {
+  if (order !== 'SAME' && order !== 'REVERSE') {
+    problems.push(
+      `"Waiver Request Sort Order" is "${order}" — needs to be "Same" or "Reverse" (Weekly Rolling and ` +
+        `Season-long Rolling both have MFL recalculating the order itself)`
+    );
+  }
+  const nonNoneCriteria = sortCriteria
+    .map((v, i) => (v && v !== 'NONE' ? `Criteria #${i + 1}="${v}"` : null))
+    .filter(Boolean);
+  if (nonNoneCriteria.length) {
+    problems.push(`Waiver Sort Criteria should all be "None" but found: ${nonNoneCriteria.join(', ')}`);
+  }
+
+  if (problems.length) {
     log(
-      `⚠ WARNING: This league's "Waiver Request Sort Order" (${url}) is set to "${checked}", not "Same". ` +
-        `MFL will periodically recalculate the waiver order itself under this setting and may overwrite ` +
-        `whatever this run submits. Proceeding anyway — set it to "Same" if you want this bot to be the ` +
-        `sole authority over waiver order.`
+      `⚠ WARNING: This league's waiver settings (${url}) may conflict with this bot — ${problems.join('; ')}. ` +
+        `MFL may periodically recalculate the waiver order itself and overwrite whatever this run submits. ` +
+        `Proceeding anyway — fix these if you want this bot to be the sole authority over waiver order.`
     );
   } else {
-    log('Waiver Request Sort Order is "Same" — compatible.');
+    log('Waiver Request Sort Order and Sort Criteria are all compatible.');
   }
 }
 
