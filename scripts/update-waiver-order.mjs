@@ -318,11 +318,20 @@ async function diagnoseWaiverSettingsPage(page) {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     const controls = await page.evaluate(() => {
       const describe = (el) => {
-        const labelText =
-          el.closest('tr')?.querySelector('td.inputlabel')?.textContent?.trim() ||
-          el.closest('label')?.textContent?.trim() ||
-          '';
-        return { tag: el.tagName, type: el.type || '', name: el.name || '', id: el.id || '', value: el.value, checked: el.checked, label: labelText };
+        const rowText = el.closest('tr')?.innerText?.trim().replace(/\s+/g, ' ').slice(0, 300) || '';
+        const labelFor = el.id ? document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim() : '';
+        const nextSibling = el.nextSibling && el.nextSibling.nodeType === 3 ? el.nextSibling.textContent.trim() : '';
+        return {
+          tag: el.tagName,
+          type: el.type || '',
+          name: el.name || '',
+          id: el.id || '',
+          value: el.value,
+          checked: el.checked,
+          labelFor,
+          nextSibling,
+          rowText,
+        };
       };
       const selects = Array.from(document.querySelectorAll('select')).map((s) => ({
         ...describe(s),
