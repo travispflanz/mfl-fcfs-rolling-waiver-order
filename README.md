@@ -14,7 +14,7 @@ drops to the bottom of the list. Whoever's gone longest without an add
 — trades, IR moves, taxi squad, auctions — none of those affect waiver
 priority and this bot ignores them entirely.)
 
-**mfl-fcfs-rolling-waiver-order** runs entirely on GitHub's own hosted
+**MFL FCFS + Rolling Waiver Order** runs entirely on GitHub's own hosted
 runners — no server, no local machine, nothing that depends on your
 computer being on.
 
@@ -51,12 +51,23 @@ they're already correct by the time the automation can possibly run
    (The automation checks all of this on every run and logs a warning
    if anything's still off — see "Settings-compatibility check" below.)
 
-   You don't need to separately set up an initial order on **Custom
-   Waiver Order Setup** — confirmed live, that page always shows a
-   populated order already (draft order, standings, or whatever MFL's
-   currently using), even before anyone's ever saved a custom one. This
-   bot just adopts whatever's there as its starting point and reorders
-   from there.
+   **If your league has a specific starting order in mind** — most
+   commonly reverse draft order, but any convention — set it yourself
+   on **Custom Waiver Order Setup** before the bot's first run. This
+   matters because of what the six Sort Criteria above actually offer:
+   confirmed live, all 12 options (Overall Win %, Head-to-Head, Total
+   Points, Divisional Win %, All-Play Win %, Reverse Points Against,
+   Power Rank, Victory Points, Last Week's Points, Offensive Points,
+   Defensive Points, and None) are standings/performance-based — **none
+   of them is draft-order-based.** MFL has no automatic way to seed a
+   draft-order-derived starting order; manually arranging it yourself,
+   once, is the only way to get that specific convention.
+
+   **If you don't have a specific starting order in mind** — no separate
+   step needed. Confirmed live, **Custom Waiver Order Setup** always
+   shows a populated order already, even before anyone's ever saved a
+   custom one, and this bot just adopts whatever's there as its starting
+   point and reorders from there.
 
 2. Above the file list on this page:
 
