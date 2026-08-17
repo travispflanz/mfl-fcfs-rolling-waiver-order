@@ -178,6 +178,30 @@ async function login(page) {
     );
   }
   log('Login OK. Landed on:', page.url());
+
+  await activateCommissionerModeIfNeeded(page);
+}
+
+// MFL's nav shows a "BECOME COMMISSIONER" link even for an account that
+// *is* the commissioner — being authenticated and "acting as commissioner"
+// appear to be two separate session states (this matches an earlier,
+// previously-unconfirmed hypothesis that MFL_IS_COMMISH is set by a
+// distinct action, not by login alone). If present, follow it before
+// touching any commissioner-only page.
+async function activateCommissionerModeIfNeeded(page) {
+  const link = page.locator('a', { hasText: /become\s+commissioner/i }).first();
+  const count = await link.count();
+  if (!count) {
+    log('No "Become Commissioner" link found on the post-login page — proceeding as-is.');
+    return;
+  }
+  const href = await link.getAttribute('href');
+  log(`Found "Become Commissioner" link (href="${href}"). Following it.`);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+    link.click(),
+  ]);
+  log('After following "Become Commissioner":', page.url(), '—', await page.title());
 }
 
 async function getFranchiseNames(page) {
@@ -214,12 +238,23 @@ async function readWaiverSetupPage(page) {
 
   if (!fields.input_expires) {
     const title = await page.title();
-    const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 1000);
     const inputCount = await page.locator('input').count();
+    // Grab the main content area rather than the first N chars of body
+    // text, which on MFL pages is dominated by the mega-menu nav. Also
+    // dump every commissioner-related link on the page verbatim so the
+    // real mechanism is visible instead of guessed at again.
+    const diag = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a'))
+        .filter((a) => /commiss/i.test(a.textContent || '') || /commiss/i.test(a.getAttribute('href') || ''))
+        .map((a) => ({ text: a.textContent.trim(), href: a.getAttribute('href') }));
+      const main = document.querySelector('#content, .content, main, #main') || document.body;
+      return { links, mainText: (main.innerText || '').slice(0, 1500) };
+    });
     throw new Error(
       `Could not find input_expires on the waiver setup page — login may not have carried ` +
-        `through, or MFL changed the page. url=${url} title="${title}" totalInputs=${inputCount} ` +
-        `bodySample="${bodyText}"`
+        `through, or this session isn't in commissioner mode, or MFL changed the page. ` +
+        `url=${url} title="${title}" totalInputs=${inputCount} ` +
+        `commissionerLinks=${JSON.stringify(diag.links)} mainTextSample="${diag.mainText}"`
     );
   }
 
