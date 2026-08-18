@@ -241,13 +241,26 @@ not scraping of a rendered HTML report.
 
 ## Optional: status widget for your MFL homepage
 
-`home-page-status-snippet.html` is a small, commissioner-only status box
-you can paste into an MFL Home Page Message — shows when this last ran
-and reminds you each off-season to check `MFL_LEAGUE_URL` before the new
-year starts. It changes nothing about whether the automation runs; it's
-purely a display. Read the comments at the top of that file before using
-it — it explains plainly what the commissioner-only check does and
-doesn't actually hide.
+`home-page-status-snippet.html` is a small widget you can paste into an
+MFL Home Page Message — for the whole league, not just the
+commissioner. Every owner sees their own current waiver position and
+when they last acquired a player, the full order annotated with each
+team's last-acquired date, recent league-wide activity, a couple of
+simple season stats, and a consistency check that flags "the bot hasn't
+caught up to this yet" instead of leaving people to wonder. A separate
+commissioner-only section adds the season-rollover reminder and (once
+your repo is public) the latest GitHub Actions run status.
+
+It reuses MFL's own table styling (`report`/`oddtablerow`/`eventablerow`
+classes) instead of hardcoded colors, so it automatically matches
+whatever skin your specific league has active — no per-league
+customization needed for that part. It changes nothing about whether
+the automation runs; it's purely a display, computed from data any
+logged-in league member can already see with their own MFL session.
+Read the comments at the top of that file before using it, and edit the
+small config block near the top (your GitHub owner/repo, your actual
+check interval, and your commissioner franchise ID if "0000" doesn't
+match).
 
 ## Support
 

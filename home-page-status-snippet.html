@@ -1,67 +1,223 @@
 <!--
-  OPTIONAL — this is NOT the automation trigger. The actual waiver-order
-  update runs entirely on GitHub Actions' own schedule (see
+  MFL WAIVER BOT WIDGET — optional, for the whole league, not just the
+  commissioner. This is NOT the automation trigger — the actual waiver
+  order update runs entirely on GitHub Actions' own schedule (see
   .github/workflows/waiver-order.yml) and needs no page load, no button,
-  and no code on MFL's site at all to function. This snippet is purely a
-  small commissioner-only status/reminder box you can paste into an MFL
-  Home Page Message.
+  and no code on MFL's site at all to function. Everything below is pure
+  display, computed live from data any logged-in league member can
+  already see, using their own MFL session.
 
-  HOW THE COMMISSIONER-ONLY CHECK WORKS, AND WHAT IT DOESN'T HIDE:
-  MFL exposes a client-side `franchise_id` variable on every page. The
-  script below only renders its box when franchise_id is "0000", the
-  placeholder MFL uses for the commissioner acting without an owned
-  franchise. If your commissioner account also owns a real franchise (a
-  very common setup), your franchise_id will be that franchise's own ID
-  instead (e.g. "0003") — check yours under Franchise Information and
-  change the value below if "0000" never shows the box for you.
-  Either way, this check only controls whether the box RENDERS for a
-  given viewer. It does NOT hide the underlying HTML/JS itself — anyone
-  who views page source can see this code and the fact that it checks a
-  franchise_id. It contains no secrets (no username, password, token), so
-  that's an acceptable amount of exposure — don't extend this snippet to
-  hold anything sensitive.
+  WHAT IT SHOWS (visible to every franchise owner, not gated):
+    - Your own current waiver position + when you last acquired a player
+    - The full order, annotated with each team's last-acquired date
+    - A consistency check: does the order on this page match what the
+      bot would currently compute? (Catches "hasn't run yet" confusion
+      without needing to check GitHub at all.)
+    - Recent league-wide acquisition activity
+    - A couple of simple season stats (most active team, longest streak
+      without a pickup)
+    - A rough "next automatic check" estimate
 
-  TO USE: paste this into a league Home Page Message (For Commissioners →
-  Appearance Setup → Home Page Modules and Tabs Setup), marked as a
+  Commissioner-only section (see the franchise_id check below): a
+  reminder to update MFL_LEAGUE_URL each new season, and — once your
+  repo is public — the latest GitHub Actions run status. Both need
+  action only a commissioner can take, so they're hidden from regular
+  owners rather than cluttering the page for everyone.
+
+  DESIGN NOTE — theme inheritance: different MFL leagues run different
+  site skins with different colors. This widget deliberately does NOT
+  hardcode any color — it reuses MFL's own semantic table classes
+  (report / oddtablerow / eventablerow / reportnavigation, the same
+  ones MFL uses for every report on the site) so it automatically
+  matches whatever skin *your* league has active, with no per-league
+  customization needed.
+
+  HOW THE COMMISSIONER-ONLY CHECK WORKS, AND WHAT IT DOESN'T HIDE: MFL
+  exposes a client-side `franchise_id` variable on every page. The
+  commissioner-only block below only renders when franchise_id is
+  "0000", the placeholder MFL uses for a commissioner acting without an
+  owned franchise. If your commissioner account also owns a real
+  franchise (a very common setup), your franchise_id will be that
+  franchise's own ID instead (e.g. "0003") — check yours under Franchise
+  Information and edit COMMISSIONER_FRANCHISE_ID below if "0000" never
+  shows that section for you. Either way, this check only controls
+  whether that section RENDERS for a given viewer — it does NOT hide the
+  underlying HTML/JS itself; anyone who views page source can see this
+  code. It contains no secrets (no username, password, token), so that's
+  an acceptable amount of exposure — don't extend this snippet to hold
+  anything sensitive.
+
+  TO USE: paste this into a league Home Page Message (Commissioner Setup
+  → Appearance Setup → Home Page Modules and Tabs Setup), marked as a
   Header or Footer message. Turn off "Advanced Editor" under Appearance
-  Setup → Reports and Security Settings first, or MFL will mangle the raw
-  HTML/script when you save it. Then edit the two placeholders below:
-  OWNER/REPO for your own GitHub repo, and the franchise_id check above
-  if needed.
+  Setup → Reports and Security Settings first, or MFL will mangle the
+  raw HTML/script when you save it. Then edit the config block just
+  below: your GitHub OWNER/REPO (only used for the commissioner-only
+  "last run" line), your CHECK_INTERVAL_MINUTES (must match whatever
+  your workflow's cron is actually set to — this widget can't read that
+  automatically), and COMMISSIONER_FRANCHISE_ID if needed.
 -->
-<div id="mfl-waiver-status" style="display:none;margin:8px 0;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-family:sans-serif;font-size:12px;"></div>
+<div id="mfl-waiver-bot-widget"></div>
 
 <script>
 (function () {
-  if (typeof franchise_id === 'undefined' || franchise_id !== '0000') return; // commissioner-only, see comment above
+  // ── Config — edit these three ──────────────────────────────────────
+  var OWNER = 'YOUR-GITHUB-USERNAME';       // <-- edit
+  var REPO = 'YOUR-REPO-NAME';              // <-- edit
+  var CHECK_INTERVAL_MINUTES = 60;          // <-- edit to match your workflow's cron
+  var COMMISSIONER_FRANCHISE_ID = '0000';   // <-- edit if "0000" doesn't show the commissioner section for you
+  // ─────────────────────────────────────────────────────────────────
 
-  var OWNER = 'YOUR-GITHUB-USERNAME'; // <-- edit
-  var REPO = 'YOUR-REPO-NAME';        // <-- edit
+  var root = document.getElementById('mfl-waiver-bot-widget');
+  if (!root || typeof franchise_id === 'undefined') return;
 
-  var box = document.getElementById('mfl-waiver-status');
-  box.style.display = 'block';
-  box.textContent = 'Waiver order auto-checks every few minutes via GitHub Actions — this box is just a status display, not a control.';
+  var ACQUIRED_TYPES = ['WAIVER', 'BBID_WAIVER', 'FREE_AGENT'];
+  var myFid = String(franchise_id).padStart ? String(franchise_id).padStart(4, '0') : franchise_id;
+  var isCommissioner = String(franchise_id) === String(COMMISSIONER_FRANCHISE_ID);
 
-  // Off-season reminder: MFL leagues get transferred to a new season each
-  // year (same host/league ID, new year in the URL). Roughly Feb–July,
-  // nudge whoever's reading this to make sure MFL_LEAGUE_URL has been
-  // updated for the upcoming season.
-  var month = new Date().getMonth() + 1; // 1-12
-  if (month >= 2 && month <= 7) {
-    box.textContent += ' New season coming — double-check MFL_LEAGUE_URL in your repo\'s Settings once you transfer this league forward.';
+  // Reads the native "Waiver Wire Order" widget already rendered on
+  // this page, rather than calling a commissioner-only endpoint — every
+  // owner can already see this widget, so this just reads what's there.
+  function readNativeOrder() {
+    var all = Array.prototype.slice.call(document.querySelectorAll('*'));
+    var header = all.find(function (el) {
+      return /waiver wire order/i.test(el.textContent || '') && el.children.length < 5;
+    });
+    if (!header) return null;
+    var container = header;
+    for (var i = 0; i < 4 && container.parentElement; i++) container = container.parentElement;
+    var rows = Array.prototype.slice.call(container.querySelectorAll('tr')).filter(function (tr) {
+      return /^\s*\d+\.?\s*$/.test((tr.children[0] && tr.children[0].textContent) || '');
+    });
+    return rows.map(function (tr) {
+      return (tr.children[1] && tr.children[1].textContent || '').trim();
+    }).filter(Boolean);
   }
 
-  // Show the latest GitHub Actions run status/time, once this repo is
-  // public (the Actions API needs auth for private repos, so this just
-  // quietly does nothing until then — the static text above still shows).
-  fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/actions/runs?per_page=1')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (data) {
-      var run = data && data.workflow_runs && data.workflow_runs[0];
-      if (!run) return;
-      var when = new Date(run.updated_at).toLocaleString();
-      box.textContent += ' Last run: ' + run.status + '/' + (run.conclusion || 'pending') + ' at ' + when + '.';
-    })
-    .catch(function () {}); // private repo, offline, rate-limited, etc. — fine, static text still shown
+  function fetchTransactions() {
+    var url = window.location.origin + window.location.pathname.replace(/\/home\/.*$/, '') +
+      '/export?TYPE=transactions&L=' + (typeof league_id !== 'undefined' ? league_id : '') +
+      '&TRANS_TYPE=' + ACQUIRED_TYPES.join(',') + '&JSON=1';
+    return fetch(url, { credentials: 'include' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var list = data && data.transactions && data.transactions.transaction;
+        if (!list) return [];
+        return Array.isArray(list) ? list : [list];
+      })
+      .catch(function () { return []; });
+  }
+
+  function fmtAgo(ts) {
+    if (!ts) return 'no record';
+    var days = Math.floor((Date.now() / 1000 - ts) / 86400);
+    if (days <= 0) return 'today';
+    if (days === 1) return '1 day ago';
+    return days + ' days ago';
+  }
+
+  fetchTransactions().then(function (txs) {
+    // Most-recent-acquisition timestamp per franchise, and a lightweight
+    // per-franchise name lookup from the same records.
+    var lastByFid = {};
+    var nameByFid = {};
+    txs.forEach(function (tx) {
+      var fid = String(tx.franchise || '').padStart ? String(tx.franchise).padStart(4, '0') : tx.franchise;
+      var ts = Number(tx.timestamp || 0);
+      if (!fid || !ts) return;
+      if (!lastByFid[fid] || ts > lastByFid[fid]) lastByFid[fid] = ts;
+    });
+    document.querySelectorAll('a[href*="F=00"]').forEach(function (a) {
+      var m = a.getAttribute('href').match(/F=(\d{4})/);
+      if (m && a.textContent.trim()) nameByFid[m[1]] = nameByFid[m[1]] || a.textContent.trim();
+    });
+
+    var nativeOrderNames = readNativeOrder();
+
+    var html = '';
+
+    // My own position — personalized, shown to every viewer.
+    var myLast = lastByFid[myFid];
+    html += '<table class="report"><caption>Waiver Bot</caption><tbody>';
+    html += '<tr class="oddtablerow"><td>Your last acquisition</td><td>' + fmtAgo(myLast) + '</td></tr>';
+
+    // Recent league-wide activity (last 5).
+    var recent = txs.filter(function (t) { return t.timestamp; })
+      .sort(function (a, b) { return b.timestamp - a.timestamp; })
+      .slice(0, 5);
+    if (recent.length) {
+      html += '<tr class="eventablerow"><td colspan="2"><span class="reportnavigationheader">Recent activity</span></td></tr>';
+      recent.forEach(function (t, i) {
+        var fid = String(t.franchise || '').padStart ? String(t.franchise).padStart(4, '0') : t.franchise;
+        var name = nameByFid[fid] || ('Franchise ' + fid);
+        var row = i % 2 === 0 ? 'oddtablerow' : 'eventablerow';
+        html += '<tr class="' + row + '"><td>' + name + '</td><td>' + fmtAgo(t.timestamp) + '</td></tr>';
+      });
+    }
+
+    // Simple season stats: most-active team, longest current streak
+    // without a pickup (among franchises that have ever acquired).
+    var fids = Object.keys(lastByFid);
+    if (fids.length) {
+      var counts = {};
+      txs.forEach(function (t) {
+        var fid = String(t.franchise || '').padStart ? String(t.franchise).padStart(4, '0') : t.franchise;
+        if (fid) counts[fid] = (counts[fid] || 0) + 1;
+      });
+      var mostActiveFid = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+      var longestQuietFid = fids.sort(function (a, b) { return lastByFid[a] - lastByFid[b]; })[0];
+      html += '<tr class="oddtablerow"><td>Most active team</td><td>' +
+        (nameByFid[mostActiveFid] || mostActiveFid) + ' (' + counts[mostActiveFid] + ' pickups)</td></tr>';
+      html += '<tr class="eventablerow"><td>Longest without a pickup</td><td>' +
+        (nameByFid[longestQuietFid] || longestQuietFid) + ' — ' + fmtAgo(lastByFid[longestQuietFid]) + '</td></tr>';
+    }
+
+    // Consistency check: does the order actually shown on this page
+    // match what the bot would compute right now from this same
+    // transaction data? Uses the same ascending-by-recency logic as the
+    // bot script itself (scripts/update-waiver-order.mjs).
+    if (nativeOrderNames && nativeOrderNames.length) {
+      var byName = {};
+      Object.keys(nameByFid).forEach(function (fid) { byName[nameByFid[fid]] = fid; });
+      var ordered = nativeOrderNames.slice().sort(function (a, b) {
+        var fa = byName[a], fb = byName[b];
+        return (lastByFid[fa] || 0) - (lastByFid[fb] || 0);
+      });
+      var matches = ordered.every(function (name, i) { return name === nativeOrderNames[i]; });
+      html += '<tr class="oddtablerow"><td colspan="2">' +
+        (matches
+          ? '&#10003; Order above matches what the bot currently computes.'
+          : 'Order above doesn\'t match the bot\'s current computation yet — next check in up to ' +
+            CHECK_INTERVAL_MINUTES + ' min.') +
+        '</td></tr>';
+    }
+
+    html += '<tr class="eventablerow"><td colspan="2"><span class="reportnavigation">Auto-checks every ~' +
+      CHECK_INTERVAL_MINUTES + ' min via GitHub Actions — this widget is just a display, not a control.</span></td></tr>';
+
+    // ── Commissioner-only section ──────────────────────────────────
+    if (isCommissioner) {
+      var month = new Date().getMonth() + 1;
+      var seasonNote = (month >= 2 && month <= 7)
+        ? ' New season coming — double-check MFL_LEAGUE_URL in your repo\'s Settings once you transfer this league forward.'
+        : '';
+      html += '<tr class="oddtablerow"><td colspan="2"><span class="reportnavigationheader">Commissioner</span>' + seasonNote + '</td></tr>';
+      html += '<tr id="mfl-waiver-bot-ghstatus" class="eventablerow"><td colspan="2">Checking last run status&hellip;</td></tr>';
+      fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/actions/runs?per_page=1')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          var run = data && data.workflow_runs && data.workflow_runs[0];
+          var cell = document.querySelector('#mfl-waiver-bot-ghstatus td');
+          if (!cell) return;
+          if (!run) { cell.textContent = 'Last run status unavailable (repo private, offline, or rate-limited).'; return; }
+          cell.textContent = 'Last run: ' + run.status + '/' + (run.conclusion || 'pending') +
+            ' at ' + new Date(run.updated_at).toLocaleString() + '.';
+        })
+        .catch(function () {});
+    }
+
+    html += '</tbody></table>';
+    root.innerHTML = html;
+  });
 })();
 </script>
