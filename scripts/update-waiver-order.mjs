@@ -205,13 +205,9 @@ async function main() {
       return;
     }
 
-    // TEMPORARY (one-time write-path test, will be reverted): normally
-    // skips submission when nothing changed. Bypassed here just once to
-    // prove the actual POST mechanism works end-to-end with real data,
-    // since with zero transactions this check has silently prevented
-    // every single run so far — dry or real — from ever exercising it.
     if (arraysEqual(currentOrder, targetOrder)) {
-      log('Target order is identical to current order — submitting anyway (one-time write-path test).');
+      log('Target order is identical to current order — nothing to submit.');
+      return;
     }
 
     await submitWaiverOrder(page, fields, targetOrder);
