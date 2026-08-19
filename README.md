@@ -1,35 +1,37 @@
-# MFL FCFS + Rolling Waiver Order
+# MyFantasyLeague.com Continuously-Updating Season-long Rolling Waiver Priority 
 
-Automatically keeps a MyFantasyLeague.com (MFL) league's **Custom Waiver
+Keep a MyFantasyLeague.com (MFL) league's **Custom Waiver
 Order** on one continuously-updating rolling priority list, driven by two
 specific acquisition types MFL tracks separately:
 
-- **First-Come-First-Served free agency** (instant pickups)
+- **First-Come-First-Served free agency** (instant free agent adds)
 - **Waiver free agency** (scheduled-priority claims)
 
+**Why is this needed?**
+
+By default MFL is not capable of treating every free agent acquisition the same to figure the current waiver order. Many fantasy football leagues find a benefit to combining these two types of free agent acquisitions to make each decision to add a player carry some weight for a fantasy team owner. With FCFS and Waiver free agent acquisitions separate, an owner can hang on to their #1 waiver priority all season waitig for "someone special" while filling all their other free agency needs through FCFS. 
+
 This bot doesn't care which of those two someone used — within a few
-minutes (by default) of *any* franchise picking up a player either way,
-it drops to the bottom of the list. Whoever's gone longest without an
-add (or never has) sits at the top. (MFL tracks other transaction types
-too — trades, IR moves, taxi squad, auctions — none of those affect
+minutes (by default) of *any* team picking up a player either way,
+drops to the bottom of the waiver priority list. The tam that has gone longest without a free agent add (or never has) sits at the top. (MFL tracks other transaction types
+ — trades, IR moves, taxi squad, auctions — none of those affect
 waiver priority and this bot ignores them entirely.)
 
 **MFL FCFS + Rolling Waiver Order** runs entirely on a **Cloudflare
 Worker** — no server, no local machine, nothing that depends on your
 computer being on, and no headless browser: plain HTTP requests, so
-each check takes milliseconds rather than the ~20-25 seconds a real
-browser needs.
+each transaction logs check and waiver priority update takes milliseconds.
 
 ## Quick start (written for a first-time commissioner — no coding experience assumed)
 
 This whole setup happens entirely in your regular web browser, across
-three sites: MFL's own site (a few settings), GitHub (holding your own
-copy of the code, and one small text edit), and Cloudflare's dashboard
+three sites: Your fantasy football league in MFL's own site (a few settings), GitHub (here, holding your own
+copy of the code, and one small REQUIRED manual text edit), and Cloudflare's dashboard
 (where the automation actually runs). **No installing anything, no
 command line/terminal, no coding.** Every step below is clicking a
 button or filling in a text box.
 
-Budget 20–30 minutes the first time. None of this touches money or
+Expect first-time setup to take 20–30 minutes. None of this requires money or payment or
 requires a credit card — Cloudflare's free tier is more than enough
 for this, and MFL/GitHub are both already free.
 
@@ -42,6 +44,8 @@ league, then go to:
 > commissioners)* → *"ADD/DROP AND WAIVERS SETUP"* → **Waiver
 > Request Setup**
 
+<UPDATE_NOTE> i noticed another required setting. sample url structure https://www44.myfantasyleague.com/2026/csetup?L=52689&C=ADDDROP What Type Of Add/Drop System Does Your League Use? - need to require "Waiver Requests For Locked Players, First Come/First Serve For Rest" i believe because if the system doesn't use fcfs along with waivers - then there's no point to using this script</UPDATE_NOTE>
+
 - Find **"Waiver Request Sort Order"** and select either **"Same"** or
   **"Reverse"** (both work fine — pick either). What matters is that
   it's *not* left on **"Weekly Rolling"** or **"Season-long Rolling"**,
@@ -50,14 +54,13 @@ league, then go to:
 - Just below that, set all six **"Waiver Sort Criteria"** dropdowns to
   **"None."** MFL's own label text says "Same"/"Reverse" still use
   "the criteria below" — leaving any of the six on a real criterion
-  lets MFL override the order just as surely as Weekly/Season-long
-  Rolling would.
+  lets MFL override the order.
 - Click **Save** at the bottom of the page.
 
 (The automation checks both of these itself on every run and logs a
-warning if anything's still off — it won't silently break, but it's
-better to get it right up front.)
+warning if anything's still off — it won't silently break without notification)
 
+<UPDATE_NOTE>this following optional section reads weirdly. need to find out default new league initial waiver order logic and initial waiver order if commish copy league from previous season <UPDATE_NOTE>
 **Optional, only if you want a specific starting order** (like reverse
 draft order): set it yourself on **Custom Waiver Order Setup** before
 you finish setup below — MFL has no automatic way to create a
