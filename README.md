@@ -35,57 +35,57 @@ millisecond-fast rather than the ~20-25 seconds a real browser needs.
 
 This whole setup happens entirely in your regular web browser, across
 three places: your league on MFL's own site (a few settings), GitHub
-(holding your own copy of the code, plus one small required text
-edit), and Cloudflare's dashboard (where the automation actually
-runs). **No installing anything, no command line/terminal, no
-coding.** Every step below is clicking a button or filling in a text
-box.
+(holding your own copy of the code — nothing to edit there), and
+Cloudflare's dashboard (where the automation runs, and where you'll
+enter your league's info). **No installing anything, no command
+line/terminal, no coding.** Every step below is clicking a button or
+filling in a text box.
 
 Expect first-time setup to take 20–30 minutes. None of this costs
 anything or needs a credit card — Cloudflare's free tier is more than
 enough for this, and MFL/GitHub are both already free.
 
-### Part 1 — required (the core automation)
-
-**Step 1 — MFL settings.** Log into MFL as commissioner, open your
+**Step 1 — Add/Drop system.** Log into MFL as commissioner, open your
 league, then go to **Commissioner Setup** *(top navigation menu —
-only visible to commissioners)* → *"ADD/DROP AND WAIVERS SETUP"*.
+only visible to commissioners)* → *"ADD/DROP AND WAIVERS SETUP"* →
+**Add/Drop Setup**. Find **"What Type Of Add/Drop System Does Your
+League Use?"** and make sure it's set to **"Waiver Requests For
+Locked Players, First Come/First Serve For Rest"** — MFL's own name
+for the exact FCFS-plus-Waiver combination this bot exists to manage.
+If your league runs a different system entirely (pure FCFS with no
+waivers at all, Blind Bid/FAAB, etc.), this bot's whole premise
+doesn't apply to you — there'd be nothing for it to combine. Click
+**Save**.
 
-- First, on **Add/Drop Setup**: find **"What Type Of Add/Drop System
-  Does Your League Use?"** and make sure it's set to **"Waiver
-  Requests For Locked Players, First Come/First Serve For Rest"** —
-  MFL's own name for the exact FCFS-plus-Waiver combination this bot
-  exists to manage. If your league runs a different system entirely
-  (pure FCFS with no waivers at all, Blind Bid/FAAB, etc.), this bot's
-  whole premise doesn't apply to you — there'd be nothing for it to
-  combine.
-- Then go to **Waiver Request Setup** and find **"Waiver Request Sort
-  Order"** — select either **"Same"** or **"Reverse"** (both work
-  fine — pick either). What matters is that it's *not* left on
-  **"Weekly Rolling"** or **"Season-long Rolling"**, which have MFL
-  recalculate the order itself and will eventually overwrite whatever
-  this bot sets.
+**Step 2 — Waiver Request sort order.** Still under "ADD/DROP AND
+WAIVERS SETUP," go to **Waiver Request Setup**.
+
+- Find **"Waiver Request Sort Order"** and select either **"Same"**
+  or **"Reverse"** (both work fine — pick either). What matters is
+  that it's *not* left on **"Weekly Rolling"** or **"Season-long
+  Rolling"**, which have MFL recalculate the order itself and will
+  eventually overwrite whatever this bot sets.
 - Just below that, set all six **"Waiver Sort Criteria"** dropdowns to
   **"None."** MFL's own label text says "Same"/"Reverse" still use
   "the criteria below" — leaving any of the six on a real criterion
   lets MFL override the order just as surely as Weekly/Season-long
   Rolling would.
-- Click **Save** on each page as you go.
+- Click **Save**.
 
-(The automation checks all of this itself on every run and logs a
-clear warning if anything's still off — but it doesn't refuse to run
-over it, for two different reasons. First: every run reads your
-league's real transaction history fresh, from scratch, every single
-time — there's no memory of past runs to get "stuck" or drift out of
-sync, so a run with a setting still wrong just produces an order that
-may not mean what you'd expect, never a broken one. Second: maybe
-you've set something up that way on purpose, for a reason of your
-own — this bot would rather warn you clearly and let you decide than
-assume it knows better and stop you. See "Every MFL setting this bot
-cares about" below for the complete list, including the one setting
-that's a hard stop instead of a warning.)
+(The automation checks both of the settings above itself on every run
+and logs a clear warning if anything's still off — but it doesn't
+refuse to run over it, for two different reasons. First: every run
+reads your league's real transaction history fresh, from scratch,
+every single time — there's no memory of past runs to get "stuck" or
+drift out of sync, so a run with a setting still wrong just produces
+an order that may not mean what you'd expect, never a broken one.
+Second: maybe you've set something up that way on purpose, for a
+reason of your own — this bot would rather warn you clearly and let
+you decide than assume it knows better and stop you. See "Every MFL
+setting this bot cares about" below for the complete list, including
+the one setting that's a hard stop instead of a warning.)
 
-**Required: set your starting order.** Go to **Custom Waiver Order
+**Step 3 — set your starting order.** Go to **Custom Waiver Order
 Setup** (`csetup?L={your league ID}&C=WAIVORD`) and enter the order
 you want your league to start with — this is worth a real decision,
 not a rubber stamp: waiver spot #1 is meaningfully more valuable than
@@ -98,7 +98,7 @@ future version; see `docs/CONFIGURABLE_SETTINGS_IDEAS.md` if you're
 curious. Once you've set it, the bot takes over completely from your
 league's real activity going forward.
 
-**Step 2 — get your own copy of the code.** GitHub projects like this
+**Step 4 — get your own copy of the code.** GitHub projects like this
 one can serve as a "template" — think of it as a master copy you can
 stamp your own personal copy out of, without touching the original or
 needing anyone's permission to do it. Above the file list at the top
@@ -113,30 +113,19 @@ copy in any way. Either choice works identically for everything
 below.) Then click **Create repository**. GitHub
 takes you straight to your brand-new copy — that's the one you'll
 actually work with for everything below. You're not downloading or
-installing anything here; the next few steps just edit and connect
-this copy directly, through GitHub's and Cloudflare's own websites.
+installing anything here, and there's nothing else to edit on GitHub —
+the next step connects this copy directly to Cloudflare.
 
-**Step 3 — point the code at your league.** You're already on this
-repository's GitHub page, so do this now before switching anywhere
-else: click `wrangler.toml`, then click the pencil (✏️) icon in the
-top right to edit it. Change one line:
-- `MFL_LEAGUE_URL = "..."` — replace the URL with any URL from your own
-  league (your league homepage's address bar is the easiest place to
-  copy one from).
-
-Scroll down, leave it set to commit directly to your repository's
-default branch (already selected), click **Commit changes**.
-
-**Step 4 — create a free Cloudflare account.** If you don't already
+**Step 5 — create a free Cloudflare account.** If you don't already
 have one: go to [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up),
 enter an email and password, verify your email. No credit card needed
 for anything in this guide.
 
-**Step 5 — connect it to Cloudflare and deploy.** In the Cloudflare
+**Step 6 — connect it to Cloudflare and deploy.** In the Cloudflare
 dashboard: **Compute (Workers)** → **Workers & Pages** → **Create** →
 **Create a Worker** → **Continue with GitHub**. The first time, GitHub
 asks you to approve Cloudflare's access — approve it for the repository
-you created in step 2 (or all repositories, your choice). Select your
+you created in step 4 (or all repositories, your choice). Select your
 repository, then click **Save and Deploy**.
 
 This kicks off a real (short) build — Cloudflare fetches your repo,
@@ -147,17 +136,32 @@ first part comes from `name` in `wrangler.toml`, not your repository's
 name) — that's your automation's own address. Save it; you'll need it
 below.
 
-**Step 6 — set your secrets.** This one has to come after step 5, not
-before — there's nowhere to add secrets to a Worker that doesn't exist
-yet. Still on your Worker's page in Cloudflare: **Settings** →
-**Variables and Secrets** → **Add variable**, three times, marking
-each one **Secret**:
+**Step 7 — set your league and your secrets.** This one has to come
+after step 6, not before — there's nowhere to add anything to a
+Worker that doesn't exist yet. Still on your Worker's page in
+Cloudflare: **Settings** → **Variables and Secrets** → **Add
+variable**, once for each row below. Leave `MFL_LEAGUE_URL` as a
+plain **Variable**; mark the other three **Secret**:
 
-| Name | Value |
-|---|---|
-| `MFL_USERNAME` | your real MFL commissioner login |
-| `MFL_PASSWORD` | your real MFL commissioner password |
-| `DIAG_TOKEN` | any random text you make up right now (mash the keyboard) — write it down |
+| Name | Value | Type |
+|---|---|---|
+| `MFL_LEAGUE_URL` | any URL from your own league (your league homepage's address bar is the easiest place to copy one from) | Variable |
+| `MFL_USERNAME` | your real MFL commissioner login | Secret |
+| `MFL_PASSWORD` | your real MFL commissioner password | Secret |
+| `DIAG_TOKEN` | any random text you make up right now (mash the keyboard) — write it down | Secret |
+
+Why `MFL_LEAGUE_URL` isn't marked Secret: it isn't sensitive, and
+leaving it as a plain Variable means you can come back and see or edit
+it later without guessing — useful, since you'll return to change it
+once a year (see "Each new NFL season" below).
+
+Two more optional Variables, added the exact same way, any time (not
+just now) — skip them entirely and sensible defaults apply:
+
+- `FAILURE_NOTIFICATION_METHOD` — how you want to hear about a real
+  failure: `email` (default), `message_board`, `both`, or `none`.
+- `WORKER_STATUS_URL` — your own Worker's URL (shown above, from step
+  6) purely so failure alerts can include a clickable link to it.
 
 Why `DIAG_TOKEN` exists at all: your Worker's address is public —
 anyone who finds or guesses it could type it into their own browser.
@@ -177,26 +181,26 @@ schedule (which needs no token at all) isn't affected either way.
 
 Want full manual control instead of checking automatically every 5
 minutes? That's already possible, no extra setup needed: set
-`wrangler.toml`'s `crons` line to an empty list (`crons = []`, same
-edit as step 3) and nothing runs on its own at all — you'd trigger a
-real check yourself, any time you like, by visiting
-`/run?dry_run=false&token=YOUR_DIAG_TOKEN` in your browser whenever
-you want one. Most commissioners won't want this, since it means
-remembering to actually go do it, but it's there if you'd rather have
-full control than convenience.
+`crons = []` in `wrangler.toml`'s `[triggers]` block (edited on
+GitHub — see "Schedule" below for exactly how) and nothing runs on its
+own at all — you'd trigger a real check yourself, any time you like,
+by visiting `/run?dry_run=false&token=YOUR_DIAG_TOKEN` in your browser
+whenever you want one. Most commissioners won't want this, since it
+means remembering to actually go do it, but it's there if you'd rather
+have full control than convenience.
 
-**Step 7 — check that it's actually working.** The easiest check
+**Step 8 — check that it's actually working.** The easiest check
 needs nothing pasted in at all: visit
-`https://YOUR-WORKER-URL/status` (your Worker's own URL from step 5,
+`https://YOUR-WORKER-URL/status` (your Worker's own URL from step 6,
 no token needed) any time after its first automatic check has run —
-up to 15 minutes after you deployed in step 5 (see "What actually
+up to 15 minutes after you deployed in step 6 (see "What actually
 turns this on" below). You should see `"ok":true` and a real, computed
 order, not an error.
 
 Don't want to wait that long? You can trigger a real check yourself
 right now instead. Paste this into your browser's address bar,
-replacing both placeholders with your Worker's URL from step 5 and the
-`DIAG_TOKEN` you made up in step 6, and press Enter:
+replacing both placeholders with your Worker's URL from step 6 and the
+`DIAG_TOKEN` you made up in step 7, and press Enter:
 
 ```
 https://YOUR-WORKER-URL/run?dry_run=true&token=YOUR_DIAG_TOKEN
@@ -204,12 +208,12 @@ https://YOUR-WORKER-URL/run?dry_run=true&token=YOUR_DIAG_TOKEN
 
 Either way, you should see a block of JSON with your real team names
 and a computed order, and no `error`. If you do see an error, re-check
-steps 3, 5, and 6 first (a wrong secret or a wrong league URL are the
+steps 6 and 7 first (a wrong secret or a wrong league URL are the
 most common causes; see `docs/DEVELOPMENT_NOTES.md` if storage itself
 seems to be the problem).
 
 **Done.** Nothing else to turn on — the schedule already started the
-moment your Worker deployed in step 5; the first real check happens
+moment your Worker deployed in step 6; the first real check happens
 within 5 minutes (up to ~15 minutes the very first time, while the
 schedule finishes activating on Cloudflare's end). Check your league
 homepage's Waiver Wire Order widget afterward to confirm.
@@ -231,7 +235,7 @@ they were or want to help decide their direction.
 
 You don't have to flip anything on separately — the schedule set in
 `wrangler.toml`'s `[triggers]` block starts running the moment your
-Worker successfully deploys in step 5. There's no extra "activate"
+Worker successfully deploys in step 6. There's no extra "activate"
 switch hiding anywhere. One thing worth knowing so you don't worry for
 nothing: a brand-new or just-changed schedule can take up to ~15
 minutes to actually start firing across Cloudflare's network, so don't
@@ -251,26 +255,28 @@ stand right now.
 Want to check on it yourself? Visit `GET /status` on your own Worker's
 URL any time (no token needed) and it'll show you the last run's
 outcome. And if something does actually break, you won't need to go
-looking for it — a real failure automatically posts to your league's
-Message Board and emails you directly, both through
+looking for it — a real failure automatically notifies you through
 MFL's own official tools, not some third-party service you'd have to
-sign up for separately. It only sends that alert once per new
-failure, too, so one ongoing problem won't spam you every 5 minutes.
+sign up for separately. By default that means a commissioner email;
+set `FAILURE_NOTIFICATION_METHOD` (step 7) if you'd rather have a
+Message Board post instead, both, or neither. It only sends that
+alert once per new failure, too, so one ongoing problem won't spam you
+every 5 minutes.
 
 ### Every MFL setting this bot cares about, in one place
 
 This bot never changes an MFL *setting* on your behalf — only the
 actual waiver order data itself. Every setting below is something you
-set once yourself, in Step 1; this table just makes clear what's
-checked automatically afterward, and what happens if something
-drifts, so nothing here is a surprise later.
+set once yourself, in Quick Start steps 1–3; this table just makes
+clear what's checked automatically afterward, and what happens if
+something drifts, so nothing here is a surprise later.
 
-| Setting | Where | Bot checks it | If it's wrong |
-|---|---|---|---|
-| Add/Drop System | `csetup?C=ADDDROP` | Every run (indirectly, via `currentWaiverType`) | Warns, still runs |
-| Waiver Request Sort Order | `csetup?C=WAIVREQ` | Every run | Warns, still runs |
-| Waiver Sort Criteria (×6) | `csetup?C=WAIVREQ` | Every run | Warns, still runs |
-| Starting order | `csetup?C=WAIVORD` | Never (nothing to check — any value is a valid starting point) | N/A |
+| Setting | Where | Step | Bot checks it | If it's wrong |
+|---|---|---|---|---|
+| Add/Drop System | `csetup?C=ADDDROP` | 1 | Every run (indirectly, via `currentWaiverType`) | Warns, still runs |
+| Waiver Request Sort Order | `csetup?C=WAIVREQ` | 2 | Every run | Warns, still runs |
+| Waiver Sort Criteria (×6) | `csetup?C=WAIVREQ` | 2 | Every run | Warns, still runs |
+| Starting order | `csetup?C=WAIVORD` | 3 | Never (nothing to check — any value is a valid starting point) | N/A |
 
 All of these are checked on *every single run*, before it does
 anything else. If any of them have drifted, the run logs a clear,
@@ -283,17 +289,11 @@ purpose for a reason of your own.
 
 Every year, MFL has you transfer your league forward into the new
 season. The host and league ID stay exactly the same — only the year
-changes. When you do that transfer, just edit `MFL_LEAGUE_URL` in
-`wrangler.toml` the same way you did in Quick Start step 3 — right
-there on GitHub, in your browser — and commit the change. Cloudflare
-picks it up and redeploys automatically within a minute or two;
-there's no separate "deploy" step to remember.
-
-(A previous version of this bot actually figured a season rollover
-out on its own, probing forward each run to detect it. That hasn't
-been rebuilt yet, so for now this one edit is on you, once a year.
-Worth automating properly if it turns out to be more of a hassle in
-practice than it sounds.)
+changes. When you do that transfer, go to your Worker's **Settings**
+→ **Variables and Secrets** in the Cloudflare dashboard (the same
+screen as Quick Start step 7), edit `MFL_LEAGUE_URL`'s value to a URL
+from your new season's league, and click **Deploy**. No GitHub, no
+waiting on a build — it's live as soon as you save.
 
 ## Schedule
 
@@ -307,12 +307,18 @@ submission only happens when the computed order is genuinely
 different from what's already there, so an unchanged check is fast
 and cheap, milliseconds start to finish.
 
-Want it checking more or less often? Edit the `crons` line in
-`wrangler.toml`'s `[triggers]` block the same way you edited it in
-Quick Start step 3 — on GitHub, in your browser — using a standard
-5-field cron expression, like `*/5 * * * *` for every 5 minutes or
-`*/15 * * * *` for every 15. Commit the change and Cloudflare
-redeploys automatically. See
+Want it checking more or less often? This is the one setting in this
+whole project that still lives in `wrangler.toml` instead of the
+Cloudflare dashboard — Cloudflare requires Cron Trigger schedules to
+be managed that way, full stop, no dashboard-only equivalent survives
+a redeploy. To change it: on GitHub, open your repository, click
+`wrangler.toml`, click the pencil (✏️) icon in the top right to edit
+it, and change the `crons` line in the `[triggers]` block to a
+standard 5-field cron expression, like `*/5 * * * *` for every 5
+minutes or `*/15 * * * *` for every 15. Scroll down, leave it set to
+commit directly to your repository's default branch, and click
+**Commit changes** — Cloudflare redeploys automatically within a
+minute or two. See
 [Cloudflare's cron syntax reference](https://developers.cloudflare.com/workers/configuration/cron-triggers/#supported-cron-expressions)
 if you want the exact format rules.
 
@@ -327,63 +333,46 @@ nothing will get reverted on you by surprise.
 
 Prefer to trigger checks yourself instead of on any automatic
 schedule at all? Set `crons = []` the same way and nothing runs on its
-own — see Quick Start step 6 for how to trigger a real check manually
+own — see Quick Start step 7 for how to trigger a real check manually
 whenever you want one.
 
-## Why plain HTTP works now (it didn't used to)
+## Under the hood
 
-Curious why this works at all, given how finicky this kind of thing
-usually is? Here's the short version. An earlier attempt at this ran
-as a Cloudflare Worker doing plain `fetch()` calls, and it reliably
-got served a stripped-down, logged-out-looking page from MFL — even
-using a cookie string captured directly from a real, working browser
-session, which ruled out "wrong cookie" as the culprit at the time.
-The real cause, found later: MFL treats "logged in" and "acting as
-commissioner for this league" as two genuinely different session
-states. A league-scoped "Become Commissioner" step
-(`logout?L={league}&BECOME=0000`, despite what the URL says) is
-required even for an account that already *is* the commissioner. The
-original attempt never did this step, simply because nobody knew it
-was necessary yet. Once that one step is included, a plain `fetch()`
-pipeline — login, become commissioner, read, write — works exactly as
-well as a real browser, just without the ~20-second browser startup
-and navigation overhead every single time. Confirmed live, end to
-end, including a real write, before this became the production path.
+A few quick answers for anyone curious how this actually works — the
+full technical reference (exact endpoints, field names, what's
+officially documented vs. reverse engineered) lives in
+[`docs/DEVELOPMENT_NOTES.md`](docs/DEVELOPMENT_NOTES.md), for anyone
+who wants the whole story.
 
-## How the write itself works
-
-MFL doesn't offer any public API for setting the waiver order, so
-this automation uses the exact same commissioner-only web form a
-person would click through by hand (`csetup?L={league}&C=WAIVORD`).
-It reads that form's hidden fields fresh on every single run
-(`input_expires`, `WAIVER_ORDER_LEAGUE_1..N`, and a few others), then
-submits the reordered list straight back. Nothing gets clicked or
-dragged anywhere — MFL is happy to accept a direct form submission
-once the session is authenticated as commissioner, exactly as if a
-person had filled it in themselves.
-
-## Reading the acquired-transaction data — and the current order itself
-
-Transaction history comes from MFL's own documented
-`export?TYPE=transactions&JSON=1` API (filtered to
-`TRANS_TYPE=WAIVER,BBID_WAIVER,FREE_AGENT`) — real, structured,
-official data, not anything scraped off a rendered page. Franchise
-names and the current order get checked the same honest way, against
-`export?TYPE=league&JSON=1` (also public, also structured JSON) —
-independent of the one HTML page (`WAIVORD`) that has no API
-equivalent at all and genuinely has to be read directly, just for its
-one-time-use `input_expires` token. If those two sources ever
-disagree with each other, that's treated as a hard stop rather than
-quietly trusting either one — and whenever HTML does need to be read,
-it's done with Cloudflare's own `HTMLRewriter` (a real streaming,
-CSS-selector-based parser), not hand-rolled regex, specifically so it
-stays resilient if MFL ever changes its markup.
+- **Why plain HTTP works, when an earlier attempt at this couldn't
+  get it to work at all:** MFL treats "logged in" and "acting as
+  commissioner for this league" as two genuinely different session
+  states. A league-scoped "Become Commissioner" step is required even
+  for an account that already *is* the commissioner — miss it, and
+  MFL quietly serves a stripped-down, logged-out-looking page instead
+  of erroring. Once that one extra step is included, a plain
+  `fetch()` pipeline works exactly as well as a real browser, just
+  without the browser-startup overhead. See "Authentication" in
+  `DEVELOPMENT_NOTES.md`.
+- **How the write itself works:** MFL doesn't offer any public API
+  for setting the waiver order, so this uses the exact same
+  commissioner-only web form a person would click through by hand. It
+  reads that form's hidden fields fresh on every run, then submits the
+  reordered list straight back — nothing gets clicked or dragged
+  anywhere. See "Writing data" in `DEVELOPMENT_NOTES.md`.
+- **How the transaction history and current order get read:** both
+  come from MFL's own documented `export` API — real, structured,
+  official JSON, not anything scraped off a rendered page. The one
+  exception is the write form itself, which has no API equivalent and
+  has to be read directly, just for its one-time-use token. See
+  "Reading data" in `DEVELOPMENT_NOTES.md`.
 
 ## Files
 
 - `worker.js` — the automation itself, running on Cloudflare Workers.
-- `wrangler.toml` — Worker config: Cron Trigger, KV namespace binding,
-  league config.
+- `wrangler.toml` — Worker config: Cron Trigger, KV namespace binding.
+  League URL, secrets, and everything else commissioner-facing live in
+  the Cloudflare dashboard instead — see Quick Start step 7.
 - `home-page-status-snippet.html` — optional homepage widget, currently
   tabled; see `docs/FUTURE_WORK.md`.
 - `docs/` — deeper reference material for anyone (human or AI)
@@ -419,11 +408,12 @@ stays configured, not part of what runs every 5 minutes.
 If you'd rather not touch GitHub at all, even just to hold a copy of
 the code: Cloudflare's dashboard also lets you paste a Worker's code in
 directly (Create a Worker → Start with Hello World! → its built-in code
-editor) and configure secrets and the Cron Trigger through the same
-dashboard forms the main flow uses in step 6 and the Schedule section
-— no GitHub account needed at all. One real difference from the main
-flow: this path's automatic storage provisioning (step 5 above) is
-tied specifically to deploying `wrangler.toml` through Cloudflare's
+editor) and configure your league URL, secrets, and the Cron Trigger
+through the same dashboard forms the main flow uses in step 7 and the
+Schedule section — no GitHub account needed at all. One real
+difference from the main flow: this path's automatic storage
+provisioning (step 6 above) is tied specifically to deploying
+`wrangler.toml` through Cloudflare's
 build system, so it doesn't apply here — you'd create the KV
 namespace yourself first, the same manual way the main flow used to,
 under **Storage & Databases → Workers KV → Create Instance**, then add

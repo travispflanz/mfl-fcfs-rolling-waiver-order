@@ -1,58 +1,34 @@
-# >>> The name below is just a starting default — Cloudflare uses it to
-# >>> build this Worker's own address (name.YOUR-SUBDOMAIN.workers.dev).
-# >>> Change it to anything you want; nothing else in this project
-# >>> depends on the literal value.
-name = "mfl-waiver-order"
+# This is Cloudflare's own Worker config file, not a custom "app
+# settings" file — everything below is either required by Cloudflare
+# for any Worker to deploy at all, or fixed plumbing that worker.js
+# references directly and isn't meant to be tuned. There are no
+# commissioner-facing settings in this file at all: MFL_LEAGUE_URL and
+# every other setting are entered under your Worker's own Settings ->
+# Variables and Secrets in the Cloudflare dashboard, after you deploy.
+# Full rationale: docs/DEVELOPMENT_NOTES.md.
+
+# Required by Cloudflare for any Worker — not a setting of this bot's.
+name = "mfl-waiver-order"   # optional to rename; nothing else depends on this
 main = "worker.js"
-# Cloudflare's own Workers Best Practices guide: keep this current for
-# access to the latest runtime features. No nodejs_compat flag needed
-# — this Worker uses only Web APIs (fetch, HTMLRewriter, crypto.subtle),
-# no Node.js built-ins.
 compatibility_date = "2026-08-18"
 
-# REQUIRED — the Worker fails loud with a clear error if this isn't
-# set (no silent fallback to any specific league). Set MFL_LEAGUE_URL
-# to any URL from your league (its homepage address bar is easiest) —
-# host/year/league ID are all parsed out of it. Or set
-# MFL_HOST/MFL_YEAR/MFL_LEAGUE individually if you'd rather be explicit.
-#
-# >>> If you're setting this up for YOUR OWN league (not this repo's
-# >>> original Kansas City Keeper), replace the URL below with yours.
-[vars]
-MFL_LEAGUE_URL = "https://www44.myfantasyleague.com/2026/home/19186"
-# Optional — purely cosmetic. If set to your own deployed Worker's URL
-# (shown on your Worker's page in the Cloudflare dashboard once
-# deployed), failure alert emails/posts include a link to it.
-# Everything works fine without this.
-# WORKER_STATUS_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status"
+# Tells Cloudflare not to wipe out dashboard-set Variables on deploy —
+# needed because MFL_LEAGUE_URL and friends live only in the dashboard,
+# not in this file. Without this, every push would silently delete
+# them. See "Source of truth" in docs/DEVELOPMENT_NOTES.md.
+keep_vars = true
 
-# Secrets (MFL_USERNAME, MFL_PASSWORD, DIAG_TOKEN) are NOT set here —
-# add them under your Worker's Settings -> Variables and Secrets in the
-# Cloudflare dashboard (or `wrangler secret put <NAME>` if you're using
-# the CLI) so they never touch a file on disk or source control.
-
-# Hardening idea #5: last-run status, so a failure is visible without
-# needing any second third-party account (GitHub, email, webhook, ...)
-# beyond the Cloudflare account already required for the Worker itself.
-#
-# Deliberately no `id =` line here — Cloudflare's automatic resource
-# provisioning (Beta, confirmed real: developers.cloudflare.com/workers
-# /wrangler/configuration/#automatic-provisioning) creates this KV
-# namespace for you on first deploy, no manual step needed. If you're
-# using the CLI instead of the GitHub-connected flow, `wrangler deploy`
-# also writes the generated id back into this file automatically.
+# Not a setting — `STATUS_KV` is a binding name worker.js references
+# directly in code. Stores last-run status for /status and failure
+# alerting. No `id =` here on purpose: Cloudflare creates this
+# namespace automatically on first deploy.
 [[kv_namespaces]]
 binding = "STATUS_KV"
 
-# Full cutover (2026-08-18): Cloudflare is now the ONLY thing running
-# this automatically — the old GitHub Actions workflow file, its
-# Playwright script, and package.json were deleted from the working
-# tree entirely (recoverable from git history if ever needed). Every
-# 5 minutes: this repo's own history already identified
-# 5-minute polling as the ideal design before GitHub Actions' per-minute
-# billing forced a compromise up to hourly — Cloudflare removes that
-# cost constraint, so this reverts to the original preferred interval
-# rather than picking a new number arbitrarily. Cron Trigger changes
-# can take up to ~15 minutes to propagate after a deploy.
+# The one other real setting: checks your league every 5 minutes by
+# default. Edit freely — any standard 5-field cron expression works.
+# This is the one setting that has to stay here rather than in the
+# dashboard — Cloudflare requires Cron Trigger schedules to be managed
+# through this file, full stop, no exceptions.
 [triggers]
 crons = ["*/5 * * * *"]

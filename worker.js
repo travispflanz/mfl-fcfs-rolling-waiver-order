@@ -58,25 +58,32 @@
  * (claimOrRefreshStatusSlotSafely()) if not, since "Yes" would
  * silently mangle the write.
  *
- * FAILURE ALERTING (added 2026-08-18): a real (non-dry-run) failure
- * posts to the league's Message Board and emails the commissioner,
- * both via MFL's own official, documented Import API
- * (import?TYPE=messageBoard / TYPE=emailMessage) — no third-party
- * service of any kind, same one MFL account this project already
- * requires. The commissioner's email target is looked up dynamically
- * every time (league.commish_username matched against each
- * franchise's username; falls back to the documented "0000" — MFL's
- * own sentinel for "a commissioner with no owned franchise" — when no
- * franchise matches), so this works whether or not the commissioner
- * owns a team in their league. Only fires once per new failure (a
- * repeat failure while already in a known-bad state doesn't re-alert)
- * — see shouldAlert() below.
+ * FAILURE ALERTING (added 2026-08-18; notification method made
+ * configurable 2026-08-19): a real (non-dry-run) failure can post to
+ * the league's Message Board and/or email the commissioner, both via
+ * MFL's own official, documented Import API (import?TYPE=messageBoard
+ * / TYPE=emailMessage) — no third-party service of any kind, same one
+ * MFL account this project already requires. Which channel(s) actually
+ * fire is controlled by FAILURE_NOTIFICATION_METHOD (see below);
+ * default is "email" only. The commissioner's email target is looked
+ * up dynamically every time (league.commish_username matched against
+ * each franchise's username; falls back to the documented "0000" —
+ * MFL's own sentinel for "a commissioner with no owned franchise" —
+ * when no franchise matches), so this works whether or not the
+ * commissioner owns a team in their league. Only fires once per new
+ * failure (a repeat failure while already in a known-bad state
+ * doesn't re-alert) — see shouldAlert() below.
  *
  * ── Secrets ── MFL_USERNAME, MFL_PASSWORD, DIAG_TOKEN
- * ── Optional config vars ── MFL_HOST, MFL_YEAR, MFL_LEAGUE, MFL_LEAGUE_URL,
- *    WORKER_STATUS_URL (your own Worker's public URL — if set, included
- *    as a link in failure alert messages; purely cosmetic, everything
- *    works without it)
+ * ── Config vars — set as plain Variables (not Secrets) under the
+ *    Worker's own Settings -> Variables and Secrets, not in
+ *    wrangler.toml ──
+ *    MFL_LEAGUE_URL (required — or set MFL_HOST/MFL_YEAR/MFL_LEAGUE
+ *    individually instead)
+ *    FAILURE_NOTIFICATION_METHOD (optional — "email" [default],
+ *    "message_board", "both", or "none")
+ *    WORKER_STATUS_URL (optional, purely cosmetic — your own Worker's
+ *    public URL, included as a link in failure alert messages)
  */
 
 const BROWSER_HEADERS = {
@@ -267,8 +274,9 @@ function getLeagueConfig(env) {
   const LEAGUE = env.MFL_LEAGUE || parsed?.league;
   if (!HOST || !YEAR || !LEAGUE) {
     throw new Error(
-      'No league configured. Set MFL_LEAGUE_URL in wrangler.toml\'s [vars] to any URL from your league ' +
-        '(e.g. your league homepage address bar) — or set MFL_HOST/MFL_YEAR/MFL_LEAGUE individually.'
+      'No league configured. Set MFL_LEAGUE_URL under your Worker\'s Settings -> Variables and Secrets ' +
+        'to any URL from your league (e.g. your league homepage address bar) — or set ' +
+        'MFL_HOST/MFL_YEAR/MFL_LEAGUE individually.'
     );
   }
   return { HOST, YEAR, LEAGUE, BASE: `https://${HOST}.myfantasyleague.com/${YEAR}` };
@@ -986,11 +994,28 @@ async function shouldAlert(env) {
   }
 }
 
+// FAILURE_NOTIFICATION_METHOD (Cloudflare dashboard Variable, not
+// wrangler.toml) picks which channel(s) below actually fire. Default
+// "email" (Travis's explicit choice, 2026-08-19) — deliberately not
+// "both", so an unattended Message Board post isn't the default for
+// every commissioner. Unrecognized value: warn and fall back to
+// "email" rather than silently doing nothing, same "don't go quiet by
+// accident" philosophy as shouldAlert() below.
+const VALID_NOTIFICATION_METHODS = ['email', 'message_board', 'both', 'none'];
+
 // Both channels use MFL's own official, documented Import API — not
 // scraping, not a third-party service. Best-effort: failures here are
 // caught and reported but never thrown, so a broken alert can't mask
 // or replace the real error in the report.
 async function sendFailureAlert(env, jar, BASE, LEAGUE, errorMessage) {
+  let method = (env.FAILURE_NOTIFICATION_METHOD || 'email').trim().toLowerCase();
+  if (!VALID_NOTIFICATION_METHODS.includes(method)) {
+    console.log(`Warning: unrecognized FAILURE_NOTIFICATION_METHOD "${method}" — falling back to "email".`);
+    method = 'email';
+  }
+  const wantsMessageBoard = method === 'message_board' || method === 'both';
+  const wantsEmail = method === 'email' || method === 'both';
+
   const subject = 'MFL Waiver Bot — automation failure';
   const body =
     `The waiver-order automation hit an error and could not complete its run.\n\n` +
@@ -998,32 +1023,40 @@ async function sendFailureAlert(env, jar, BASE, LEAGUE, errorMessage) {
     (env.WORKER_STATUS_URL ? `Status: ${env.WORKER_STATUS_URL}\n\n` : '') +
     `(This is an automated message from the Cloudflare Worker automation.)`;
 
-  const result = { messageBoard: null, email: null };
+  const result = { method, messageBoard: null, email: null };
 
-  try {
-    const params = new URLSearchParams({ TYPE: 'messageBoard', L: LEAGUE, FRANCHISE_ID: '0000', SUBJECT: subject, BODY: body });
-    const { res, finalText } = await followWithCookies(`${BASE}/import?${params.toString()}`, { method: 'GET' }, jar);
-    result.messageBoard = { status: res.status, response: finalText.slice(0, 500) };
-  } catch (err) {
-    result.messageBoard = { error: err.message };
-  }
-
-  let sendTo = null;
-  try {
-    const leagueData = await getLeagueExportData(jar, BASE, LEAGUE);
-    sendTo = leagueData.commissionerFranchiseId;
-  } catch (err) {
-    result.email = { skipped: `could not determine commissioner send target: ${err.message}` };
-  }
-
-  if (sendTo) {
+  if (wantsMessageBoard) {
     try {
-      const params = new URLSearchParams({ TYPE: 'emailMessage', L: LEAGUE, SEND_TO: sendTo, SUBJECT: subject, BODY: body });
+      const params = new URLSearchParams({ TYPE: 'messageBoard', L: LEAGUE, FRANCHISE_ID: '0000', SUBJECT: subject, BODY: body });
       const { res, finalText } = await followWithCookies(`${BASE}/import?${params.toString()}`, { method: 'GET' }, jar);
-      result.email = { sentTo: sendTo, status: res.status, response: finalText.slice(0, 500) };
+      result.messageBoard = { status: res.status, response: finalText.slice(0, 500) };
     } catch (err) {
-      result.email = { sentTo: sendTo, error: err.message };
+      result.messageBoard = { error: err.message };
     }
+  } else {
+    result.messageBoard = { skipped: `FAILURE_NOTIFICATION_METHOD=${method}` };
+  }
+
+  if (wantsEmail) {
+    let sendTo = null;
+    try {
+      const leagueData = await getLeagueExportData(jar, BASE, LEAGUE);
+      sendTo = leagueData.commissionerFranchiseId;
+    } catch (err) {
+      result.email = { skipped: `could not determine commissioner send target: ${err.message}` };
+    }
+
+    if (sendTo) {
+      try {
+        const params = new URLSearchParams({ TYPE: 'emailMessage', L: LEAGUE, SEND_TO: sendTo, SUBJECT: subject, BODY: body });
+        const { res, finalText } = await followWithCookies(`${BASE}/import?${params.toString()}`, { method: 'GET' }, jar);
+        result.email = { sentTo: sendTo, status: res.status, response: finalText.slice(0, 500) };
+      } catch (err) {
+        result.email = { sentTo: sendTo, error: err.message };
+      }
+    }
+  } else {
+    result.email = { skipped: `FAILURE_NOTIFICATION_METHOD=${method}` };
   }
 
   return result;

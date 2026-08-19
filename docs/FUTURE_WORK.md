@@ -11,6 +11,60 @@ items).
 
 ## Open, not yet decided
 
+- **Event-driven trigger via MFL's own email notifications, instead of
+  5-minute polling** (researched 2026-08-19, prompted by Travis
+  questioning why polling is needed at all when MFL already emails
+  owners on transactions — a fair challenge to the README's existing
+  "confirmed, no better option" line, which turned out to be about the
+  *documented API* specifically, not this).
+  **Confirmed real, via MFL's own live Help Center** (Login &
+  Communication → Email → "How do I use the Commissioner Email Setup
+  page?"), not guessed: the Commissioner Email Setup page has a
+  **"Waiver/Free Agent Moves"** checkbox, and per MFL's own answer text
+  it is a commissioner-level, league-wide option — it is *not* scoped
+  to just the commissioner's own franchise the way the equivalent
+  Franchise Setup → Contact Info checkbox is for a regular owner. One
+  checkbox, one email address, every franchise's waiver/FA move in the
+  league.
+  **Confirmed real, via Cloudflare's own docs**: [Email
+  Routing](https://developers.cloudflare.com/email-service/) lets a
+  Worker export an `email()` handler that fires the instant a message
+  lands at an address you control — genuine push, not polling.
+  Combined, the concept: point that MFL notification at a
+  Cloudflare-routed address, parse the incoming email in `email()`,
+  and trigger the real waiver-order pipeline only when something
+  actually happened — `scheduled()`'s 5-minute tick becomes a rare
+  fallback safety net instead of the primary trigger.
+  **Re-confirmed while researching this**: MFL's documented Import API
+  has no webhook/callback registration mechanism of any kind — this
+  project already checked the full Import + Misc sections end to end
+  while building the failure-alerting feature and found none (no SMS,
+  no push, nothing beyond `messageBoard`/`emailMessage`/`chat_save`).
+  Email is genuinely the only channel MFL offers for this, not an
+  overlooked shortcut.
+  **The real trade-off, not yet resolved**: Cloudflare Email Routing
+  only works on an actual domain added to Cloudflare as a zone — it
+  does **not** work on a bare `*.workers.dev` subdomain, which is all
+  this project has ever needed. Building this would mean every
+  commissioner setting this up needs to own a domain and add it to
+  Cloudflare — a genuine new prerequisite this project has deliberately
+  avoided everywhere else, not just a config tweak. Worth a real
+  decision from Travis before building: is trading "zero domain
+  needed" for "true push instead of polling" worth it, given polling
+  already costs nothing on Cloudflare's free tier (see README
+  "Schedule")?
+  **Two open questions that need live testing, not doc-reading, to
+  answer** — neither claimed either way without evidence: (1) how
+  promptly MFL actually sends this email (its own Help Center text
+  shows at least one *other* notification type is explicitly batched —
+  "My Player News... sent nightly at 3am" — so "instant" isn't a safe
+  assumption for "Waiver/Free Agent Moves" without checking); (2) how
+  structured/parseable the email content actually is (team/player/
+  timestamp cleanly extractable, or just a "check your league" nudge)
+  — same "prefer structured data over scraping" caution this project
+  already applies to HTML, now applied to an email body. Answering both
+  means turning the checkbox on for a real account and observing a
+  real transaction's email, not something inferable from docs alone.
 - **`HMPGMOD` reverse-engineering** (automating Home Page module/tab
   placement). Currently a one-time manual step — see
   `DEVELOPMENT_NOTES.md` for why no official API exists for this.

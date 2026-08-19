@@ -198,16 +198,16 @@ unverified if you encounter it.
   the same requirement as "make CLI use approachable," which an
   earlier pass mistakenly treated as satisfying it). The Quick Start
   now runs entirely through MFL's site, GitHub's web UI, and
-  Cloudflare's dashboard: "Continue with GitHub" for deploy, GitHub's
-  own file editor for the non-secret `wrangler.toml` values, and
+  Cloudflare's dashboard: "Continue with GitHub" for deploy, and
   Cloudflare's Settings -> Variables and Secrets / Bindings / Trigger
-  events forms for everything else — all confirmed live to exist and
-  work exactly this way, not assumed from docs prose. `wrangler`
-  CLI/`wrangler.toml` itself didn't need to change at all for this —
-  it was only ever the *setup instructions* that were terminal-first;
-  Cloudflare Workers as a platform never required that. The CLI path
-  still works and remains documented as an alternative for anyone who
-  wants it, it's just no longer what a commissioner is told to do.
+  events forms for everything commissioner-facing — all confirmed live
+  to exist and work exactly this way, not assumed from docs prose.
+  `wrangler` CLI/`wrangler.toml` itself didn't need to change at all
+  for this — it was only ever the *setup instructions* that were
+  terminal-first; Cloudflare Workers as a platform never required
+  that. The CLI path still works and remains documented as an
+  alternative for anyone who wants it, it's just no longer what a
+  commissioner is told to do.
   One real trap this created: since the Worker stays connected to the
   GitHub repo, `wrangler.toml` is what Cloudflare actually redeploys
   from on every commit — a value changed only in the Cloudflare
@@ -215,6 +215,42 @@ unverified if you encounter it.
   binding, the cron schedule) would get silently reverted on the next
   push. README calls this out explicitly; keep that framing intact if
   this section changes again.
+- **`MFL_LEAGUE_URL` moved out of `wrangler.toml` entirely, into a
+  plain (non-secret) Cloudflare dashboard Variable** (2026-08-19,
+  reversing the original design). Two things had to be true for this
+  to be safe, both confirmed via Cloudflare's own docs before building
+  it, not assumed: (1) a Worker's `env` exposes dashboard Variables
+  identically to `[vars]` entries — `getLeagueConfig()` needed no code
+  change at all. (2) Without intervention this would collide directly
+  with the trap above — Wrangler's documented default is to delete any
+  dashboard-set variable not also declared in `wrangler.toml` on the
+  very next deploy. The fix is the top-level `keep_vars = true` key
+  (Cloudflare's own documented escape hatch — "Source of truth" on
+  `developers.cloudflare.com/workers/wrangler/configuration/`), which
+  tells Wrangler to leave dashboard Variables alone instead. This makes
+  `MFL_LEAGUE_URL` a **deliberate exception** to the trap described
+  above, not a contradiction of it: `keep_vars` only affects plain
+  Variables (`[vars]`-equivalent), never KV bindings, never the Cron
+  Trigger — those two are still exclusively `wrangler.toml`-owned, with
+  no dashboard-persistent alternative, confirmed the same way (Cron
+  Triggers: "should be exclusively managed through the Wrangler
+  configuration file," `developers.cloudflare.com/workers/configuration/cron-triggers/`).
+  If this section is ever revisited: don't let `keep_vars` read as
+  "the dashboard is now the source of truth for everything" — it's
+  scoped narrowly to plain Variables only.
+  Real usability bonus from this, not just decluttering: the once-a-year
+  season rollover (see README's "Each new NFL season") no longer needs
+  GitHub at all — editing a dashboard field and clicking Deploy is
+  strictly simpler than a GitHub file edit + waiting on a build.
+  A self-throttling "cron interval as a friendly minutes variable" idea
+  was considered and explicitly rejected in this same pass — Cron
+  Triggers are evaluated by Cloudflare's infrastructure before the
+  Worker even runs, so no code-side variable can influence invocation
+  timing, only what the Worker chooses to do once invoked. Layering a
+  KV-backed self-throttle on top to fake it was judged not worth the
+  added failure surface for a knob nobody had asked to turn (Travis's
+  call, after pushback: "seems redundant and unnecessary and more
+  moving parts to break").
 - **KV namespace: no `id =` in `wrangler.toml`, relies on Cloudflare's
   automatic resource provisioning** (2026-08-19, in place of an
   earlier manual "go create a KV namespace, copy its ID" Quick Start
@@ -229,12 +265,26 @@ unverified if you encounter it.
   Storage & Databases → Workers KV → Create Instance, add its `id`
   back into `wrangler.toml`'s `[[kv_namespaces]]` block, and redeploy
   — the same shape as the step this replaced.
+- **`FAILURE_NOTIFICATION_METHOD` — configurable alert channel,
+  default `email`** (2026-08-19, in place of the original hardcoded
+  "always both channels"). Plain dashboard Variable, one of `email`
+  (default), `message_board`, `both`, `none`; validated in
+  `sendFailureAlert()` with an unrecognized value falling back to
+  `email` — same "don't go quiet by accident" philosophy as
+  `shouldAlert()`'s own KV-unavailable fallback. Deliberately *not*
+  defaulting to `both`, Travis's explicit call: an unattended Message
+  Board post shouldn't be the default behavior for every commissioner
+  who never touches this setting. The underlying MFL API calls
+  (`import?TYPE=messageBoard` / `TYPE=emailMessage`) are unchanged —
+  see "Writing data" above; only which of them get invoked is new.
 
 ## File map
 
 - `worker.js` — the entire automation.
-- `wrangler.toml` — Cron Trigger, KV binding, league config (`[vars]`
-  — must be edited per-deployment). Both files live at the repo root
+- `wrangler.toml` — Cron Trigger, KV binding, and `keep_vars = true`
+  only. No `[vars]` block — `MFL_LEAGUE_URL` and every other
+  commissioner-facing setting live in Cloudflare dashboard Variables
+  instead (see "Key design decisions" above). Both files live at the repo root
   (no subfolder) so Cloudflare's GitHub-connected deploy finds
   `wrangler.toml` at its default expected location — a real
   requirement, not a style choice: an earlier `cloudflare-test/`
