@@ -1,0 +1,46 @@
+name = "kckeeper-waiver-order"
+main = "worker.js"
+# Cloudflare's own Workers Best Practices guide: keep this current for
+# access to the latest runtime features. No nodejs_compat flag needed
+# — this Worker uses only Web APIs (fetch, HTMLRewriter, crypto.subtle),
+# no Node.js built-ins.
+compatibility_date = "2026-08-18"
+
+# REQUIRED — the Worker fails loud with a clear error if this isn't
+# set (no silent fallback to any specific league). Set MFL_LEAGUE_URL
+# to any URL from your league (its homepage address bar is easiest) —
+# host/year/league ID are all parsed out of it. Or set
+# MFL_HOST/MFL_YEAR/MFL_LEAGUE individually if you'd rather be explicit.
+#
+# >>> If you're setting this up for YOUR OWN league (not this repo's
+# >>> original Kansas City Keeper), replace the URL below with yours.
+[vars]
+MFL_LEAGUE_URL = "https://www44.myfantasyleague.com/2026/home/19186"
+# Optional — purely cosmetic. If set to your own deployed Worker's URL
+# (printed by `wrangler deploy`), failure alert emails/posts include a
+# link to it. Everything works fine without this.
+# WORKER_STATUS_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status"
+
+# Secrets (MFL_USERNAME, MFL_PASSWORD, DIAG_TOKEN) are NOT set here —
+# set them with `wrangler secret put <NAME>` so they never touch a file
+# on disk or source control.
+
+# Hardening idea #5: last-run status, so a failure is visible without
+# needing any second third-party account (GitHub, email, webhook, ...)
+# beyond the Cloudflare account already required for the Worker itself.
+[[kv_namespaces]]
+binding = "STATUS_KV"
+id = "1436a1972308462b84076f5096b1572e"
+
+# Full cutover (2026-08-18): Cloudflare is now the ONLY thing running
+# this automatically — the old GitHub Actions workflow file, its
+# Playwright script, and package.json were deleted from the working
+# tree entirely (recoverable from git history if ever needed). Every
+# 5 minutes: this repo's own history already identified
+# 5-minute polling as the ideal design before GitHub Actions' per-minute
+# billing forced a compromise up to hourly — Cloudflare removes that
+# cost constraint, so this reverts to the original preferred interval
+# rather than picking a new number arbitrarily. Cron Trigger changes
+# can take up to ~15 minutes to propagate after a deploy.
+[triggers]
+crons = ["*/5 * * * *"]

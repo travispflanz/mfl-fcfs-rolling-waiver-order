@@ -1,28 +1,30 @@
 <!--
   MFL WAIVER BOT WIDGET — optional, for the whole league, not just the
   commissioner. This is NOT the automation trigger — the actual waiver
-  order update runs entirely on GitHub Actions' own schedule (see
-  .github/workflows/waiver-order.yml) and needs no page load, no button,
-  and no code on MFL's site at all to function. Everything below is pure
-  display, computed live from data any logged-in league member can
-  already see, using their own MFL session.
+  order update runs entirely on a Cloudflare Worker's own Cron Trigger
+  (see cloudflare-test/worker.js + wrangler.toml) and needs no page
+  load, no button, and no code on MFL's site at all to function.
+  Everything below is pure display, computed live from data any
+  logged-in league member can already see, using their own MFL session
+  — plus one small public status read from the Worker itself (see
+  WORKER_STATUS_URL below), which needs no login/token of its own.
 
   WHAT IT SHOWS (visible to every franchise owner, not gated):
     - Your own current waiver position + when you last acquired a player
     - The full order, annotated with each team's last-acquired date
     - A consistency check: does the order on this page match what the
       bot would currently compute? (Catches "hasn't run yet" confusion
-      without needing to check GitHub at all.)
+      without needing to check anything else at all.)
     - Recent league-wide acquisition activity
     - A couple of simple season stats (most active team, longest streak
       without a pickup)
     - A rough "next automatic check" estimate
 
   Commissioner-only section (see the franchise_id check below): a
-  reminder to update MFL_LEAGUE_URL each new season, and — once your
-  repo is public — the latest GitHub Actions run status. Both need
-  action only a commissioner can take, so they're hidden from regular
-  owners rather than cluttering the page for everyone.
+  reminder to update MFL_LEAGUE_URL each new season, and the automation's
+  actual last-run status (ok/fail, when, what happened) straight from
+  the Cloudflare Worker. This needs action only a commissioner can take,
+  so it's hidden from regular owners rather than cluttering the page.
 
   DESIGN NOTE — theme inheritance: different MFL leagues run different
   site skins with different colors. This widget deliberately does NOT
@@ -52,19 +54,20 @@
   Header or Footer message. Turn off "Advanced Editor" under Appearance
   Setup → Reports and Security Settings first, or MFL will mangle the
   raw HTML/script when you save it. Then edit the config block just
-  below: your GitHub OWNER/REPO (only used for the commissioner-only
-  "last run" line), your CHECK_INTERVAL_MINUTES (must match whatever
-  your workflow's cron is actually set to — this widget can't read that
-  automatically), and COMMISSIONER_FRANCHISE_ID if needed.
+  below: your WORKER_STATUS_URL (your own deployed Worker's /status
+  endpoint — only used for the commissioner-only "last run" line, and
+  it's a public read with no token, so it's safe to leave visible in
+  page source), your CHECK_INTERVAL_MINUTES (must match your Worker's
+  Cron Trigger — this widget can't read that automatically), and
+  COMMISSIONER_FRANCHISE_ID if needed.
 -->
 <div id="mfl-waiver-bot-widget"></div>
 
 <script>
 (function () {
   // ── Config — edit these three ──────────────────────────────────────
-  var OWNER = 'YOUR-GITHUB-USERNAME';       // <-- edit
-  var REPO = 'YOUR-REPO-NAME';              // <-- edit
-  var CHECK_INTERVAL_MINUTES = 60;          // <-- edit to match your workflow's cron
+  var WORKER_STATUS_URL = 'https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status'; // <-- REQUIRED: replace with your own Worker's URL (printed when you ran `wrangler deploy`)
+  var CHECK_INTERVAL_MINUTES = 5;           // <-- edit to match your Worker's Cron Trigger
   var COMMISSIONER_FRANCHISE_ID = '0000';   // <-- edit if "0000" doesn't show the commissioner section for you
   // ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +109,20 @@
         return Array.isArray(list) ? list : [list];
       })
       .catch(function () { return []; });
+  }
+
+  // Franchise names are owner-controlled free text (anyone can rename
+  // their own team to anything, including HTML), and the strings below
+  // get assigned via innerHTML — escaped on principle so a mischievous
+  // or careless team name can never break the widget or run script in
+  // a fellow league member's browser.
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function fmtAgo(ts) {
@@ -151,7 +168,7 @@
         var fid = String(t.franchise || '').padStart ? String(t.franchise).padStart(4, '0') : t.franchise;
         var name = nameByFid[fid] || ('Franchise ' + fid);
         var row = i % 2 === 0 ? 'oddtablerow' : 'eventablerow';
-        html += '<tr class="' + row + '"><td>' + name + '</td><td>' + fmtAgo(t.timestamp) + '</td></tr>';
+        html += '<tr class="' + row + '"><td>' + escapeHtml(name) + '</td><td>' + fmtAgo(t.timestamp) + '</td></tr>';
       });
     }
 
@@ -167,15 +184,15 @@
       var mostActiveFid = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
       var longestQuietFid = fids.sort(function (a, b) { return lastByFid[a] - lastByFid[b]; })[0];
       html += '<tr class="oddtablerow"><td>Most active team</td><td>' +
-        (nameByFid[mostActiveFid] || mostActiveFid) + ' (' + counts[mostActiveFid] + ' pickups)</td></tr>';
+        escapeHtml(nameByFid[mostActiveFid] || mostActiveFid) + ' (' + counts[mostActiveFid] + ' pickups)</td></tr>';
       html += '<tr class="eventablerow"><td>Longest without a pickup</td><td>' +
-        (nameByFid[longestQuietFid] || longestQuietFid) + ' — ' + fmtAgo(lastByFid[longestQuietFid]) + '</td></tr>';
+        escapeHtml(nameByFid[longestQuietFid] || longestQuietFid) + ' — ' + fmtAgo(lastByFid[longestQuietFid]) + '</td></tr>';
     }
 
     // Consistency check: does the order actually shown on this page
     // match what the bot would compute right now from this same
     // transaction data? Uses the same ascending-by-recency logic as the
-    // bot script itself (scripts/update-waiver-order.mjs).
+    // Worker itself (cloudflare-test/worker.js, inside runPipeline()).
     if (nativeOrderNames && nativeOrderNames.length) {
       var byName = {};
       Object.keys(nameByFid).forEach(function (fid) { byName[nameByFid[fid]] = fid; });
@@ -193,27 +210,34 @@
     }
 
     html += '<tr class="eventablerow"><td colspan="2"><span class="reportnavigation">Auto-checks every ~' +
-      CHECK_INTERVAL_MINUTES + ' min via GitHub Actions — this widget is just a display, not a control.</span></td></tr>';
+      CHECK_INTERVAL_MINUTES + ' min via Cloudflare Worker — this widget is just a display, not a control.</span></td></tr>';
 
     // ── Commissioner-only section ──────────────────────────────────
     if (isCommissioner) {
       var month = new Date().getMonth() + 1;
       var seasonNote = (month >= 2 && month <= 7)
-        ? ' New season coming — double-check MFL_LEAGUE_URL in your repo\'s Settings once you transfer this league forward.'
+        ? ' New season coming — double-check MFL_LEAGUE_URL in wrangler.toml and redeploy once you transfer this league forward.'
         : '';
       html += '<tr class="oddtablerow"><td colspan="2"><span class="reportnavigationheader">Commissioner</span>' + seasonNote + '</td></tr>';
-      html += '<tr id="mfl-waiver-bot-ghstatus" class="eventablerow"><td colspan="2">Checking last run status&hellip;</td></tr>';
-      fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/actions/runs?per_page=1')
+      html += '<tr id="mfl-waiver-bot-cfstatus" class="eventablerow"><td colspan="2">Checking last run status&hellip;</td></tr>';
+      fetch(WORKER_STATUS_URL)
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
-          var run = data && data.workflow_runs && data.workflow_runs[0];
-          var cell = document.querySelector('#mfl-waiver-bot-ghstatus td');
+          var cell = document.querySelector('#mfl-waiver-bot-cfstatus td');
           if (!cell) return;
-          if (!run) { cell.textContent = 'Last run status unavailable (repo private, offline, or rate-limited).'; return; }
-          cell.textContent = 'Last run: ' + run.status + '/' + (run.conclusion || 'pending') +
-            ' at ' + new Date(run.updated_at).toLocaleString() + '.';
+          if (!data || data.ok === null) { cell.textContent = 'No run recorded yet, or status unavailable.'; return; }
+          var when = data.ranAt ? new Date(data.ranAt).toLocaleString() : 'unknown time';
+          if (data.ok === false) {
+            cell.textContent = '⚠ Last run FAILED at ' + when + ': ' + (data.error || 'unknown error') + '.';
+          } else {
+            cell.textContent = 'Last run: ' + (data.action || 'ok') + ' at ' + when +
+              (typeof data.changed === 'boolean' ? (data.changed ? ' (order changed).' : ' (no change needed).') : '.');
+          }
         })
-        .catch(function () {});
+        .catch(function () {
+          var cell = document.querySelector('#mfl-waiver-bot-cfstatus td');
+          if (cell) cell.textContent = 'Status unavailable (Worker offline or unreachable).';
+        });
     }
 
     html += '</tbody></table>';
