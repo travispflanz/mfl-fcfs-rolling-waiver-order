@@ -1,7 +1,7 @@
-# MyFantasyLeague.com Continuously-Updating Season-long Rolling Waiver Priority 
+# MyFantasyLeague.com Continuously-Updating Season-long Rolling Waiver Priority
 
-Keep a MyFantasyLeague.com (MFL) league's **Custom Waiver
-Order** on one continuously-updating rolling priority list, driven by two
+Keep a MyFantasyLeague.com (MFL) league's **Custom Waiver Order** on
+one continuously-updating rolling priority list, driven by two
 specific acquisition types MFL tracks separately:
 
 - **First-Come-First-Served free agency** (instant free agent adds)
@@ -9,65 +9,105 @@ specific acquisition types MFL tracks separately:
 
 **Why is this needed?**
 
-By default MFL is not capable of treating every free agent acquisition the same to figure the current waiver order. Many fantasy football leagues find a benefit to combining these two types of free agent acquisitions to make each decision to add a player carry some weight for a fantasy team owner. With FCFS and Waiver free agent acquisitions separate, an owner can hang on to their #1 waiver priority all season waitig for "someone special" while filling all their other free agency needs through FCFS. 
+By default, MFL tracks these two kinds of free-agent pickups
+separately and has no built-in way to combine them into one fair,
+unified line. Plenty of leagues want that combination, though — it
+means every pickup, whichever way it's made, actually costs an owner
+something. Without it, an owner can sit on the #1 waiver spot all
+season "saving" it for one big name, while freely grabbing everyone
+else they want through FCFS in the meantime — which usually isn't
+what a league actually intends its waiver system to allow.
 
-This bot doesn't care which of those two someone used — within a few
-minutes (by default) of *any* team picking up a player either way,
-drops to the bottom of the waiver priority list. The tam that has gone longest without a free agent add (or never has) sits at the top. (MFL tracks other transaction types
- — trades, IR moves, taxi squad, auctions — none of those affect
-waiver priority and this bot ignores them entirely.)
+This bot doesn't care which of the two types someone used — within a
+few minutes (by default) of *any* team picking up a player either way,
+that team drops to the bottom of the priority list. Whichever team
+has gone longest without a free-agent add (or has never made one)
+sits at the top. (MFL tracks other transaction types too — trades, IR
+moves, taxi squad, auctions — none of those affect waiver priority,
+and this bot ignores them entirely.)
 
-**MFL FCFS + Rolling Waiver Order** runs entirely on a **Cloudflare
-Worker** — no server, no local machine, nothing that depends on your
-computer being on, and no headless browser: plain HTTP requests, so
-each transaction logs check and waiver priority update takes milliseconds.
+This automation runs entirely on a **Cloudflare Worker** — no server,
+no local machine, nothing that depends on your computer being on, and
+no headless browser: plain HTTP requests, so each check is
+millisecond-fast rather than the ~20-25 seconds a real browser needs.
 
 ## Quick start (written for a first-time commissioner — no coding experience assumed)
 
 This whole setup happens entirely in your regular web browser, across
-three sites: Your fantasy football league in MFL's own site (a few settings), GitHub (here, holding your own
-copy of the code, and one small REQUIRED manual text edit), and Cloudflare's dashboard
-(where the automation actually runs). **No installing anything, no
-command line/terminal, no coding.** Every step below is clicking a
-button or filling in a text box.
+three places: your league on MFL's own site (a few settings), GitHub
+(holding your own copy of the code, plus one small required text
+edit), and Cloudflare's dashboard (where the automation actually
+runs). **No installing anything, no command line/terminal, no
+coding.** Every step below is clicking a button or filling in a text
+box.
 
-Expect first-time setup to take 20–30 minutes. None of this requires money or payment or
-requires a credit card — Cloudflare's free tier is more than enough
-for this, and MFL/GitHub are both already free.
+Expect first-time setup to take 20–30 minutes. None of this costs
+anything or needs a credit card — Cloudflare's free tier is more than
+enough for this, and MFL/GitHub are both already free.
 
 ### Part 1 — required (the core automation)
 
 **Step 1 — MFL settings.** Log into MFL as commissioner, open your
-league, then go to:
+league, then go to **Commissioner Setup** *(top navigation menu —
+only visible to commissioners)* → *"ADD/DROP AND WAIVERS SETUP"*.
 
-> **Commissioner Setup** *(top navigation menu — only visible to
-> commissioners)* → *"ADD/DROP AND WAIVERS SETUP"* → **Waiver
-> Request Setup**
-
-<UPDATE_NOTE> i noticed another required setting. sample url structure https://www44.myfantasyleague.com/2026/csetup?L=52689&C=ADDDROP What Type Of Add/Drop System Does Your League Use? - need to require "Waiver Requests For Locked Players, First Come/First Serve For Rest" i believe because if the system doesn't use fcfs along with waivers - then there's no point to using this script</UPDATE_NOTE>
-
-- Find **"Waiver Request Sort Order"** and select either **"Same"** or
-  **"Reverse"** (both work fine — pick either). What matters is that
-  it's *not* left on **"Weekly Rolling"** or **"Season-long Rolling"**,
-  which have MFL recalculate the order itself and will eventually
-  overwrite whatever this bot sets.
+- First, on **Add/Drop Setup**: find **"What Type Of Add/Drop System
+  Does Your League Use?"** and make sure it's set to **"Waiver
+  Requests For Locked Players, First Come/First Serve For Rest"** —
+  MFL's own name for the exact FCFS-plus-Waiver combination this bot
+  exists to manage. If your league runs a different system entirely
+  (pure FCFS with no waivers at all, Blind Bid/FAAB, etc.), this bot's
+  whole premise doesn't apply to you — there'd be nothing for it to
+  combine.
+- Then go to **Waiver Request Setup** and find **"Waiver Request Sort
+  Order"** — select either **"Same"** or **"Reverse"** (both work
+  fine — pick either). What matters is that it's *not* left on
+  **"Weekly Rolling"** or **"Season-long Rolling"**, which have MFL
+  recalculate the order itself and will eventually overwrite whatever
+  this bot sets.
 - Just below that, set all six **"Waiver Sort Criteria"** dropdowns to
   **"None."** MFL's own label text says "Same"/"Reverse" still use
   "the criteria below" — leaving any of the six on a real criterion
-  lets MFL override the order.
-- Click **Save** at the bottom of the page.
+  lets MFL override the order just as surely as Weekly/Season-long
+  Rolling would.
+- Click **Save** on each page as you go.
 
-(The automation checks both of these itself on every run and logs a
-warning if anything's still off — it won't silently break without notification)
+(The automation checks all of this itself on every run and logs a
+clear warning if anything's still off — but it doesn't refuse to run
+over it, for two different reasons. First: every run reads your
+league's real transaction history fresh, from scratch, every single
+time — there's no memory of past runs to get "stuck" or drift out of
+sync, so a run with a setting still wrong just produces an order that
+may not mean what you'd expect, never a broken one. Second: maybe
+you've set something up that way on purpose, for a reason of your
+own — this bot would rather warn you clearly and let you decide than
+assume it knows better and stop you.)
 
-<UPDATE_NOTE>this following optional section reads weirdly. need to find out default new league initial waiver order logic and initial waiver order if commish copy league from previous season <UPDATE_NOTE>
-**Optional, only if you want a specific starting order** (like reverse
-draft order): set it yourself on **Custom Waiver Order Setup** before
-you finish setup below — MFL has no automatic way to create a
-draft-order-based starting point; every one of its 12 built-in sort
-criteria is standings/performance-based instead. If you don't care
-about the starting order, skip this — MFL always has *some* order
-already there, and the bot just reorders from whatever that is.
+**Optional, but genuinely worth deciding rather than skipping: your
+starting order.** This matters more than it might seem — waiver spot
+#1 is worth a lot more than spot #12, so whoever's sitting there when
+this bot goes live is getting a real head start, whether that's what
+you intended or just an accident of whatever MFL happened to have set
+already. Give it an actual thought, even if you land on "leave it
+alone."
+
+MFL doesn't auto-generate any of the options below — every one of
+them means typing the order in yourself, once, on **Custom Waiver
+Order Setup** (`csetup?L={your league ID}&C=WAIVORD`), before you
+finish the setup steps below. Common approaches:
+- **Reverse of your actual draft order** — the most common choice;
+  the same "help out whoever had the worst luck" logic most leagues
+  already use for the draft itself.
+- **Same as your draft order** — less common, but some leagues prefer
+  it.
+- **Random.**
+- **Whatever MFL already has set** — zero effort, and completely fine
+  if you don't have a strong preference, or you already like what's
+  there.
+
+Whichever you pick, it's only ever a *starting* point — from here on,
+the bot keeps it fair based on your league's real activity, starting
+with the very first pickup after it goes live.
 
 **Step 2 — get the code.** Above the file list on this page, click
 **Use this template** → **Create a new repository**. Give it any name,
@@ -177,123 +217,142 @@ Two separate add-ons, neither required for the core automation above:
 
 ### What actually turns this on
 
-The Cron Trigger declared in `wrangler.toml`'s `[triggers]` block starts
-running as soon as your Worker successfully deploys — there's no
-separate "activate" switch, and no step beyond connecting the repo in
-step 6 above. New or changed Cron Triggers can take up to ~15 minutes to
-actually propagate across Cloudflare's network, so don't be alarmed if
-the very first check doesn't fire the instant you deploy.
+You don't have to flip anything on separately — the schedule set in
+`wrangler.toml`'s `[triggers]` block starts running the moment your
+Worker successfully deploys in step 6. There's no extra "activate"
+switch hiding anywhere. One thing worth knowing so you don't worry for
+nothing: a brand-new or just-changed schedule can take up to ~15
+minutes to actually start firing across Cloudflare's network, so don't
+be alarmed if the very first check doesn't happen the instant you
+deploy — give it a few minutes.
 
 ### If it goes quiet for a while
 
-Nothing accumulates or drifts — every run independently reads your
-league's *current* live state (current order + full transaction history)
-and recomputes fresh, so a run failing, or the league settings being
-changed by hand in the meantime, doesn't leave anything to "fix" later.
-The next successful run just picks up from wherever things actually
-stand.
+Good news here: nothing piles up, and nothing gets "out of sync."
+Every single run reads your league's real, current state fresh — the
+current order plus the full transaction history — and recomputes from
+scratch every time. So if a run fails, or you change a league setting
+by hand in the meantime, there's nothing left to clean up afterward;
+the next successful run just picks up from wherever things actually
+stand right now.
 
-Checking on it: `GET /status` on your Worker (no token needed) always
-shows the last run's outcome, and the optional homepage widget's
-commissioner section (see below) displays the same thing right on your
-league page. On top of that, a real failure automatically posts to your
-league's Message Board and emails the commissioner directly — both via
-MFL's own official Import API (`messageBoard` / `emailMessage`), not a
-third-party service, so nothing extra to set up. Only fires once per new
-failure — an ongoing outage won't spam a message every 5 minutes.
+Want to check on it yourself? Visit `GET /status` on your own Worker's
+URL any time (no token needed) and it'll show you the last run's
+outcome. The optional homepage widget's commissioner section (see
+below) shows the same thing right on your league page, if you'd
+rather not remember a URL. And if something does actually break, you
+won't need to go looking for it — a real failure automatically posts
+to your league's Message Board and emails you directly, both through
+MFL's own official tools, not some third-party service you'd have to
+sign up for separately. It only sends that alert once per new
+failure, too, so one ongoing problem won't spam you every 5 minutes.
 
 ### Settings-compatibility check
 
-Every run checks MFL's own **Waiver Request Sort Order** (needs to be
-"Same" or "Reverse") and all six **Waiver Sort Criteria** (need to be
-"None") — the settings from step 1 — before doing anything else, plus a
-check that the league is actually set up for FCFS waivers (what this bot
-assumes). If anything's off, the run logs a clearly-marked warning
-explaining that MFL may silently overwrite whatever this bot sets — and
-still proceeds, rather than blocking, in case that's a deliberate choice.
+Every single run double-checks your MFL settings before it does
+anything else — the **Waiver Request Sort Order** (should be "Same"
+or "Reverse"), all six **Waiver Sort Criteria** (should be "None"),
+and that your league's actually set up for FCFS waivers — the same
+things you set in Step 1. If anything's drifted off, the run logs a
+clear, unmissable warning explaining that MFL might quietly override
+whatever this bot sets — but it still goes ahead and runs anyway,
+rather than refusing outright, in case you changed something on
+purpose for a reason of your own.
 
 ## Each new NFL season
 
-MFL has commissioners transfer/export their league forward to a new
-season every year. The host and league ID stay the same — only the year
-changes. When you do that transfer, edit `MFL_LEAGUE_URL` in
-`wrangler.toml` the same way as Quick Start step 5 — on GitHub, in your
-browser — and commit. Cloudflare redeploys automatically within a
-minute or two of any commit to your repository; no separate deploy step
-needed.
+Every year, MFL has you transfer your league forward into the new
+season. The host and league ID stay exactly the same — only the year
+changes. When you do that transfer, just edit `MFL_LEAGUE_URL` in
+`wrangler.toml` the same way you did in Quick Start step 5 — right
+there on GitHub, in your browser — and commit the change. Cloudflare
+picks it up and redeploys automatically within a minute or two;
+there's no separate "deploy" step to remember.
 
-(A previous version of this auto-detected a season rollover on its own,
-probing forward each run; that hasn't been ported yet, so this one step
-is manual for now. Worth automating if a once-a-year manual edit turns
-out to be more annoying in practice than it sounds.)
+(A previous version of this bot actually figured a season rollover
+out on its own, probing forward each run to detect it. That hasn't
+been rebuilt yet, so for now this one edit is on you, once a year.
+Worth automating properly if it turns out to be more of a hassle in
+practice than it sounds.)
 
 ## Schedule
 
-Checks **every 5 minutes**. MFL has no push/webhook for transactions
-(confirmed), so this is polling either way — but Cloudflare's free tier
-makes frequent checks effectively free, so there's no cost reason to
-space them out further. Each check only actually submits a change when
-the computed order differs from what's already there; otherwise it's a
-fast no-op, milliseconds end to end.
+This checks your league **every 5 minutes**. MFL doesn't offer any
+kind of push notification for transactions (confirmed — there's
+genuinely no better option available), so polling is the only way to
+do this either way, and Cloudflare's free tier makes frequent checks
+effectively free — there's no cost reason to check any less often.
+Most of those checks won't actually change anything, either: a
+submission only happens when the computed order is genuinely
+different from what's already there, so an unchanged check is fast
+and cheap, milliseconds start to finish.
 
-Want a different interval? Edit the `crons` line in
-`wrangler.toml`'s `[triggers]` block the same way as
-Quick Start step 5 — on GitHub, in your browser — with a standard
-5-field cron expression, e.g. `*/5 * * * *` (every 5 minutes) or
-`*/15 * * * *` (every 15), then commit; Cloudflare redeploys
-automatically. See
+Want it checking more or less often? Edit the `crons` line in
+`wrangler.toml`'s `[triggers]` block the same way you edited it in
+Quick Start step 5 — on GitHub, in your browser — using a standard
+5-field cron expression, like `*/5 * * * *` for every 5 minutes or
+`*/15 * * * *` for every 15. Commit the change and Cloudflare
+redeploys automatically. See
 [Cloudflare's cron syntax reference](https://developers.cloudflare.com/workers/configuration/cron-triggers/#supported-cron-expressions)
-for the exact format.
+if you want the exact format rules.
 
-(Cloudflare's dashboard also has its own Cron Trigger editor, under
-your Worker's Settings → Trigger events — but since your Worker is
-connected to your GitHub repo, `wrangler.toml` is the actual source of
-truth long-term: the next commit-triggered redeploy would silently
-overwrite a dashboard-only change back to whatever the file says. Edit
-it in `wrangler.toml`, not the dashboard, so nothing gets quietly
-reverted later.)
+One thing worth knowing: Cloudflare's dashboard also has its own Cron
+Trigger editor (your Worker's Settings → Trigger events), and it's
+tempting to just use that instead. Don't — since your Worker stays
+connected to your GitHub repo, `wrangler.toml` is what actually
+controls this long-term. The next time anything triggers a redeploy,
+it'll quietly overwrite a dashboard-only change back to whatever the
+file says. Always make this edit in `wrangler.toml` itself, and
+nothing will get reverted on you by surprise.
 
 ## Why plain HTTP works now (it didn't used to)
 
-An earlier version of this ran as a Cloudflare Worker doing plain
-`fetch()` calls and reliably got served a stripped, logged-out-looking
-page from MFL — even with a cookie string captured directly from a real,
-working browser session, which ruled out "wrong cookie" as the cause at
-the time. The real cause, found later: MFL treats "logged in" and
-"acting as commissioner for this league" as two different session
-states — a league-scoped "Become Commissioner" step
-(`logout?L={league}&BECOME=0000`, despite the URL) is required even for
-an account that already *is* the commissioner. The original Worker never
-did this step, because nobody knew it was necessary yet. Once that step
-is included, a plain `fetch()` pipeline — login, become commissioner,
-read, write — works exactly as well as a real browser, just without the
-~20-second browser startup/navigation overhead each time. Confirmed live
-end-to-end, including a real write, before this became the production
-path.
+Curious why this works at all, given how finicky this kind of thing
+usually is? Here's the short version. An earlier attempt at this ran
+as a Cloudflare Worker doing plain `fetch()` calls, and it reliably
+got served a stripped-down, logged-out-looking page from MFL — even
+using a cookie string captured directly from a real, working browser
+session, which ruled out "wrong cookie" as the culprit at the time.
+The real cause, found later: MFL treats "logged in" and "acting as
+commissioner for this league" as two genuinely different session
+states. A league-scoped "Become Commissioner" step
+(`logout?L={league}&BECOME=0000`, despite what the URL says) is
+required even for an account that already *is* the commissioner. The
+original attempt never did this step, simply because nobody knew it
+was necessary yet. Once that one step is included, a plain `fetch()`
+pipeline — login, become commissioner, read, write — works exactly as
+well as a real browser, just without the ~20-second browser startup
+and navigation overhead every single time. Confirmed live, end to
+end, including a real write, before this became the production path.
 
 ## How the write itself works
 
-MFL has no public API for setting waiver order — this uses the same
-commissioner-only HTML form a person would use
-(`csetup?L={league}&C=WAIVORD`), reading its hidden fields
-(`input_expires`, `WAIVER_ORDER_LEAGUE_1..N`, etc.) fresh on every run
-and POSTing the reordered list back. No UI clicking/dragging needed —
-MFL accepts a direct form POST once the session is authenticated as
-commissioner.
+MFL doesn't offer any public API for setting the waiver order, so
+this automation uses the exact same commissioner-only web form a
+person would click through by hand (`csetup?L={league}&C=WAIVORD`).
+It reads that form's hidden fields fresh on every single run
+(`input_expires`, `WAIVER_ORDER_LEAGUE_1..N`, and a few others), then
+submits the reordered list straight back. Nothing gets clicked or
+dragged anywhere — MFL is happy to accept a direct form submission
+once the session is authenticated as commissioner, exactly as if a
+person had filled it in themselves.
 
 ## Reading the acquired-transaction data — and the current order itself
 
-Transactions use MFL's documented `export?TYPE=transactions&JSON=1` API
-(`TRANS_TYPE=WAIVER,BBID_WAIVER,FREE_AGENT`) — structured, official
-data, not scraping of a rendered HTML report. Franchise names and the
-current order are cross-checked the same way, against
-`export?TYPE=league&JSON=1` (also public, structured JSON) — independent
-of the one HTML page (`WAIVORD`) that has no API equivalent and has to
-be scraped for its per-session `input_expires` token. Any disagreement
-between the two sources is treated as a hard stop rather than silently
-trusted, and HTML parsing itself uses Cloudflare's own `HTMLRewriter`
-(a real streaming CSS-selector-based parser) rather than hand-rolled
-regex, specifically to be resilient to MFL markup changes.
+Transaction history comes from MFL's own documented
+`export?TYPE=transactions&JSON=1` API (filtered to
+`TRANS_TYPE=WAIVER,BBID_WAIVER,FREE_AGENT`) — real, structured,
+official data, not anything scraped off a rendered page. Franchise
+names and the current order get checked the same honest way, against
+`export?TYPE=league&JSON=1` (also public, also structured JSON) —
+independent of the one HTML page (`WAIVORD`) that has no API
+equivalent at all and genuinely has to be read directly, just for its
+one-time-use `input_expires` token. If those two sources ever
+disagree with each other, that's treated as a hard stop rather than
+quietly trusting either one — and whenever HTML does need to be read,
+it's done with Cloudflare's own `HTMLRewriter` (a real streaming,
+CSS-selector-based parser), not hand-rolled regex, specifically so it
+stays resilient if MFL ever changes its markup.
 
 ## Files
 
@@ -596,11 +655,11 @@ Page Message, as described above.
 
 ## Optional: ambient status message on your homepage
 
-Separate from the widget above — a small always-there status table
-("Waiver Bot Status: OK, last checked ...") that the Worker itself
-writes directly into one of MFL's built-in **Home Page Message** slots
-(the same feature used for things like league fee reminders), rather
-than something you paste in yourself.
+This one's different from the widget above — instead of something you
+paste in yourself, the Worker writes a small, always-there status
+table ("Waiver Bot Status: OK, last checked ...") directly into one of
+MFL's built-in **Home Page Message** slots, the same feature leagues
+already use for things like fee reminders.
 
 **One-time prerequisite**: **Commissioner Setup → Appearance Setup →
 Reports and Security Settings**, find *"Use 'Advanced Editor' on league
