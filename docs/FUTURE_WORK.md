@@ -27,15 +27,21 @@ items).
   fallback path has never actually fired against a real league). Test
   against a league where the commissioner has no franchise if one
   becomes available.
-- **GitHub-free distribution.** Right now the only way to get a copy
-  of the code is through the GitHub repo (template button or ZIP
-  download) — not a problem for anyone willing to touch GitHub even
-  passively, but a real barrier for anyone who isn't. No solution
-  built. Candidate options if this becomes a real ask: self-hosting the
-  two files somewhere already controlled (e.g. a personal website);
-  Cloudflare's own "Deploy to Cloudflare" button was checked and
-  rejected — it still requires a GitHub or GitLab account on the
-  receiving end, so it doesn't actually solve this.
+- **GitHub-free distribution — partially resolved (2026-08-19).** The
+  primary Quick Start now actively depends on GitHub (repo connected to
+  Cloudflare, redeploying on every commit — not just a one-time
+  download), which raised the bar rather than lowered it. Confirmed
+  live, though, that a genuine GitHub-free path exists: Cloudflare's
+  own dashboard lets you paste `worker.js`'s contents directly into a
+  Worker (Create a Worker → Start with Hello World! → its built-in code
+  editor) and configure secrets/KV/cron through the same dashboard
+  forms the main flow already uses — no GitHub account needed at all.
+  This is mentioned in README's Support section but not written up as
+  a full step-by-step, since it means re-pasting code by hand for any
+  future update instead of it living in an owned repo. Worth promoting
+  to a full documented path if enough people ask for it. Cloudflare's
+  own "Deploy to Cloudflare" button remains rejected for this — it
+  still requires a GitHub or GitLab account on the receiving end.
 
 ## Explicitly decided against, for now
 

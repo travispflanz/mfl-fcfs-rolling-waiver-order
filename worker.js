@@ -806,7 +806,7 @@ async function findEmptyMessageSlot(jar, BASE, LEAGUE) {
 // (rather than silently overwriting something a human put there after
 // reclaiming the slot number) and lets a human recognize what this is
 // if they stumble on it in the admin UI.
-const STATUS_SLOT_MARKER = '<!-- kckeeper-waiver-order-automation:managed -->';
+const STATUS_SLOT_MARKER = '<!-- mfl-waiver-order-automation:managed -->';
 
 // report.error is normally a static, developer-written string, but on
 // the generic catch-all path it's whatever err.message happened to be

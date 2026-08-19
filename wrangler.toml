@@ -1,4 +1,8 @@
-name = "kckeeper-waiver-order"
+# >>> The name below is just a starting default — Cloudflare uses it to
+# >>> build this Worker's own address (name.YOUR-SUBDOMAIN.workers.dev).
+# >>> Change it to anything you want; nothing else in this project
+# >>> depends on the literal value.
+name = "mfl-waiver-order"
 main = "worker.js"
 # Cloudflare's own Workers Best Practices guide: keep this current for
 # access to the latest runtime features. No nodejs_compat flag needed
@@ -17,17 +21,23 @@ compatibility_date = "2026-08-18"
 [vars]
 MFL_LEAGUE_URL = "https://www44.myfantasyleague.com/2026/home/19186"
 # Optional — purely cosmetic. If set to your own deployed Worker's URL
-# (printed by `wrangler deploy`), failure alert emails/posts include a
-# link to it. Everything works fine without this.
+# (shown on your Worker's page in the Cloudflare dashboard once
+# deployed), failure alert emails/posts include a link to it.
+# Everything works fine without this.
 # WORKER_STATUS_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status"
 
 # Secrets (MFL_USERNAME, MFL_PASSWORD, DIAG_TOKEN) are NOT set here —
-# set them with `wrangler secret put <NAME>` so they never touch a file
-# on disk or source control.
+# add them under your Worker's Settings -> Variables and Secrets in the
+# Cloudflare dashboard (or `wrangler secret put <NAME>` if you're using
+# the CLI) so they never touch a file on disk or source control.
 
 # Hardening idea #5: last-run status, so a failure is visible without
 # needing any second third-party account (GitHub, email, webhook, ...)
 # beyond the Cloudflare account already required for the Worker itself.
+#
+# >>> The id below is this repo's own original KV namespace — it only
+# >>> exists in the original author's Cloudflare account. REPLACE IT
+# >>> with your own namespace's ID (Quick Start step 4).
 [[kv_namespaces]]
 binding = "STATUS_KV"
 id = "1436a1972308462b84076f5096b1572e"

@@ -20,7 +20,7 @@ technical/historical reference.
 
 ## Architecture, in one paragraph
 
-`cloudflare-test/worker.js` is the entire automation: one `fetch()`
+`worker.js` is the entire automation: one `fetch()`
 handler (manual endpoints, all token-gated except `/status`) and one
 `scheduled()` handler (the real production trigger, every 5 minutes
 per `wrangler.toml`). Everything talks to MFL over plain HTTP — no
@@ -193,12 +193,40 @@ unverified if you encounter it.
   review pass; both are Cloudflare's own documented best practices
   (their Basic Auth example, their Workers Best Practices guide),
   found by checking Cloudflare's docs, not guessed.
+- **Commissioner setup requires zero terminal use, full stop**
+  (2026-08-19, Travis's explicit, repeated instruction — this is not
+  the same requirement as "make CLI use approachable," which an
+  earlier pass mistakenly treated as satisfying it). The Quick Start
+  now runs entirely through MFL's site, GitHub's web UI, and
+  Cloudflare's dashboard: "Continue with GitHub" for deploy, GitHub's
+  own file editor for the non-secret `wrangler.toml` values, and
+  Cloudflare's Settings -> Variables and Secrets / Bindings / Trigger
+  events forms for everything else — all confirmed live to exist and
+  work exactly this way, not assumed from docs prose. `wrangler`
+  CLI/`wrangler.toml` itself didn't need to change at all for this —
+  it was only ever the *setup instructions* that were terminal-first;
+  Cloudflare Workers as a platform never required that. The CLI path
+  still works and remains documented as an alternative for anyone who
+  wants it, it's just no longer what a commissioner is told to do.
+  One real trap this created: since the Worker stays connected to the
+  GitHub repo, `wrangler.toml` is what Cloudflare actually redeploys
+  from on every commit — a value changed only in the Cloudflare
+  dashboard for something `wrangler.toml` also declares (the KV
+  binding, the cron schedule) would get silently reverted on the next
+  push. README calls this out explicitly; keep that framing intact if
+  this section changes again.
 
 ## File map
 
-- `cloudflare-test/worker.js` — the entire automation.
-- `cloudflare-test/wrangler.toml` — Cron Trigger, KV binding, league
-  config (`[vars]` — must be edited per-deployment).
+- `worker.js` — the entire automation.
+- `wrangler.toml` — Cron Trigger, KV binding, league config (`[vars]`
+  — must be edited per-deployment). Both files live at the repo root
+  (no subfolder) so Cloudflare's GitHub-connected deploy finds
+  `wrangler.toml` at its default expected location — a real
+  requirement, not a style choice: an earlier `cloudflare-test/`
+  subfolder (a leftover name from this project's original feasibility
+  test, never a deliberate structure) would have needed a "Root
+  directory" override in Cloudflare's build settings to work at all.
 - `home-page-status-snippet.html` — optional, separate feature (a
   client-side JS widget, different mechanism than the ambient-status
   Home Page Message — see README for the distinction).
@@ -226,3 +254,15 @@ unverified if you encounter it.
   that sharing wasn't a clean fit — see the comment above
   `authenticateAsCommissioner()` in the code). Extend whichever of the
   two you're actually touching rather than assuming they're one thing.
+- **`home-page-status-snippet.html` exists in two places** — the file
+  itself, and byte-for-byte inline inside README.md's "Optional: status
+  widget" section (so a commissioner can paste directly from the README
+  with no separate file to find — Travis's explicit ask, 2026-08-19,
+  after a prior pass updated the file but not the README's copy of it).
+  If you edit the file, regenerate the README's copy from it
+  mechanically (read the file, replace the contents of the fenced
+  \`\`\`html block in that section, verify the two are identical
+  character-for-character) rather than hand-editing or retyping the
+  README's copy — this is the actual failure mode that made this note
+  necessary in the first place. Do this for *any* edit, including a
+  one-line comment change.

@@ -1,8 +1,15 @@
 <!--
+  SYNC NOTE: this file is mirrored byte-for-byte inside README.md's
+  "Optional: status widget" section (an inline copy so a commissioner
+  can paste directly from the README, no separate file needed). If you
+  edit this file, copy the exact same change into README.md's copy —
+  do not paraphrase or retype it there, and diff the two before
+  committing. This file is the reference/backup copy of the two.
+
   MFL WAIVER BOT WIDGET — optional, for the whole league, not just the
   commissioner. This is NOT the automation trigger — the actual waiver
   order update runs entirely on a Cloudflare Worker's own Cron Trigger
-  (see cloudflare-test/worker.js + wrangler.toml) and needs no page
+  (see worker.js + wrangler.toml) and needs no page
   load, no button, and no code on MFL's site at all to function.
   Everything below is pure display, computed live from data any
   logged-in league member can already see, using their own MFL session
@@ -66,7 +73,7 @@
 <script>
 (function () {
   // ── Config — edit these three ──────────────────────────────────────
-  var WORKER_STATUS_URL = 'https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status'; // <-- REQUIRED: replace with your own Worker's URL (printed when you ran `wrangler deploy`)
+  var WORKER_STATUS_URL = 'https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/status'; // <-- REQUIRED: replace with your own Worker's URL (shown on your Worker's page in the Cloudflare dashboard once deployed)
   var CHECK_INTERVAL_MINUTES = 5;           // <-- edit to match your Worker's Cron Trigger
   var COMMISSIONER_FRANCHISE_ID = '0000';   // <-- edit if "0000" doesn't show the commissioner section for you
   // ─────────────────────────────────────────────────────────────────
@@ -192,7 +199,7 @@
     // Consistency check: does the order actually shown on this page
     // match what the bot would compute right now from this same
     // transaction data? Uses the same ascending-by-recency logic as the
-    // Worker itself (cloudflare-test/worker.js, inside runPipeline()).
+    // Worker itself (worker.js, inside runPipeline()).
     if (nativeOrderNames && nativeOrderNames.length) {
       var byName = {};
       Object.keys(nameByFid).forEach(function (fid) { byName[nameByFid[fid]] = fid; });
@@ -216,7 +223,7 @@
     if (isCommissioner) {
       var month = new Date().getMonth() + 1;
       var seasonNote = (month >= 2 && month <= 7)
-        ? ' New season coming — double-check MFL_LEAGUE_URL in wrangler.toml and redeploy once you transfer this league forward.'
+        ? ' New season coming — once you transfer this league forward, double-check MFL_LEAGUE_URL (README, &ldquo;Each new NFL season&rdquo;).'
         : '';
       html += '<tr class="oddtablerow"><td colspan="2"><span class="reportnavigationheader">Commissioner</span>' + seasonNote + '</td></tr>';
       html += '<tr id="mfl-waiver-bot-cfstatus" class="eventablerow"><td colspan="2">Checking last run status&hellip;</td></tr>';
