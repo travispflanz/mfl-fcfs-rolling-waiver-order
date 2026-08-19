@@ -7,7 +7,7 @@ why a commissioner might actually want it, roughly how it'd work from
 their side, and what additional work it would take (kept high-level on
 purpose — this is a catalog to react to, not a spec to build from yet).
 
-Grouped by theme. 15 ideas, more than the "at least 8" asked for,
+Grouped by theme. 16 ideas, more than the "at least 8" asked for,
 because once framed as "what would a commissioner reasonably want to
 control," more kept surfacing than expected.
 
@@ -36,7 +36,7 @@ value like `TUESDAY 01:00 America/Chicago`).
 configured processing window?" before actually submitting, the same
 shape as this project's own retired "only run at 2am Central" guard
 from an earlier design. Needs: a config var for the schedule, a
-day/time parser, and timezone handling (see #9 — same underlying
+day/time parser, and timezone handling (see #10 — same underlying
 question of "whose clock are we using").
 
 ### 2. Configurable ambient-status refresh interval
@@ -90,9 +90,43 @@ expecting real demand.
 
 **What it'd take**: trivial, a single sort-direction flag.
 
+### 6. Auto-computed starting order (draft-based) instead of manual MFL entry
+
+**What**: right now, giving the league a deliberate starting order
+(reverse draft order, same as draft order, random, etc. — see README's
+Quick Start) means the commissioner manually typing that order into
+MFL's Custom Waiver Order Setup themselves, once, before going live.
+This would let the Worker do it instead: a one-time (or on-demand)
+`INITIAL_ORDER_STRATEGY` setting (`reverse_draft` / `same_as_draft` /
+`random` / `leave_as_is`), computed automatically and submitted
+through the exact same WAIVORD write path the bot already uses every
+5 minutes.
+
+**Why**: this genuinely matters, not a nice-to-have — waiver spot #1 is
+a real, meaningful competitive advantage over spot #12 from day one,
+whether or not that's what the commissioner intended. Manual entry
+into MFL works, but it means correctly reconstructing your own draft
+order by hand and typing 10-14 franchise names in the right sequence
+without a mistake — exactly the kind of fiddly, error-prone step this
+whole project exists to remove elsewhere.
+
+**What it'd take**: moderate — confirmed live that MFL's
+`export?TYPE=draftResults` is a real, officially documented endpoint
+(league-owner auth required, same access level the Worker already has
+for everything else). Draft-based strategies read that export once,
+compute the target order (reverse or same), and submit it through the
+same POST `runPipeline()`'s write path already builds. "Random" needs
+no new data at all — a one-time shuffle. Needs a decision on *when*
+this runs: automatically on first successful deploy only, or as a
+deliberate one-time endpoint the commissioner triggers themselves
+(closer in spirit to `/claim-status-slot` than to the automatic
+schedule) — the latter is probably safer, since a first-deploy-only
+trigger has no clean way to be re-run if something about it goes
+wrong.
+
 ## C. Notifications & communication
 
-### 6. Notify the league on every order change, not just failures
+### 7. Notify the league on every order change, not just failures
 
 **What**: currently, the Message Board / email alerting only fires on
 a *failure*. This would add an optional, separate notification
@@ -106,7 +140,7 @@ would find it noisy. Clearly opt-in.
 `emailMessage` machinery, but needs its own on/off setting and its own
 message template, separate from the failure-alert path.
 
-### 7. Toggle which alert channels are active
+### 8. Toggle which alert channels are active
 
 **What**: independently turn Message Board posting and commissioner
 email on/off (currently both always fire together on a failure).
@@ -117,7 +151,7 @@ and not want an email for every hiccup, or vice versa.
 **What it'd take**: small — two booleans gating the two already-
 separate code paths in `sendFailureAlert()`.
 
-### 8. Customizable alert/status message text
+### 9. Customizable alert/status message text
 
 **What**: let a commissioner set their own caption/wording for the
 ambient status box and/or the alert messages, instead of the fixed
@@ -130,7 +164,7 @@ ambient status box and/or the alert messages, instead of the fixed
 instead of hardcoded, in `buildStatusSlotContent()` and
 `sendFailureAlert()`.
 
-### 9. Display timezone for timestamps
+### 10. Display timezone for timestamps
 
 **What**: timestamps shown in alerts and the status box currently use
 the Worker runtime's default rendering (effectively UTC-ish), not the
@@ -148,7 +182,7 @@ option instead of the current bare `toLocaleString()`.
 
 ## D. Safety & onboarding
 
-### 10. "Shadow mode" — scheduled runs behave as dry runs
+### 11. "Shadow mode" — scheduled runs behave as dry runs
 
 **What**: a global switch that makes even the *automatic* scheduled
 runs compute-and-log only, never actually submit — effectively running
@@ -164,9 +198,9 @@ than "flip it on and hope."
 `scheduled()`, passed through to `runPipeline()`'s existing `dryRun`
 parameter.
 
-### 11. Auto-graduate out of shadow mode after N clean runs
+### 12. Auto-graduate out of shadow mode after N clean runs
 
-**What**: a companion to #10 — automatically flip shadow mode off
+**What**: a companion to #11 — automatically flip shadow mode off
 after some number of consecutive successful dry runs, instead of
 requiring the commissioner to remember to come back and turn it off
 themselves.
@@ -179,7 +213,7 @@ each clean shadow-mode run, and a threshold config value.
 
 ## E. Ambient status feature itself
 
-### 12. Make the ambient status feature fully optional via a single setting
+### 13. Make the ambient status feature fully optional via a single setting
 
 **What**: right now, the ambient-status feature is present in the code
 either way — it's the *manual placement step* that makes it truly
@@ -188,13 +222,13 @@ opt-in in practice. A polished version might have an explicit setting
 than "build it and don't place it if you don't want it."
 
 **Why**: clearer, more discoverable opt-in than "just don't do the
-manual step" — especially relevant if #10/#11 make onboarding more
+manual step" — especially relevant if #11/#12 make onboarding more
 automatic and this needs to be part of that same first-run experience.
 
 **What it'd take**: small — a single guard around the
 `claimOrRefreshStatusSlotSafely()` call in `scheduled()`.
 
-### 13. Let a commissioner pin a specific slot number instead of auto-discovery
+### 14. Let a commissioner pin a specific slot number instead of auto-discovery
 
 **What**: if a commissioner already knows they want to use, say, slot
 #15 specifically (maybe they've already manually placed it and don't
@@ -212,7 +246,7 @@ ownership-marker check before overwriting anything).
 
 ## F. League-settings compatibility strictness
 
-### 14. Strict mode for the WAIVREQ settings check
+### 15. Strict mode for the WAIVREQ settings check
 
 **What**: currently, if `WAIVER_ORDER`/Sort Criteria aren't compatible,
 the run logs a warning and proceeds anyway. A "strict mode" setting
@@ -226,16 +260,16 @@ than have the bot "work around" a misconfiguration indefinitely.
 **What it'd take**: small — change the existing warning path to
 optionally `throw` instead, gated by config.
 
-### 15. Strict mode for the `currentWaiverType` (FCFS) check
+### 16. Strict mode for the `currentWaiverType` (FCFS) check
 
-**What**: same idea as #14, applied to the "is this league actually
+**What**: same idea as #15, applied to the "is this league actually
 FCFS?" check — currently warn-only, could be configurable to hard-stop.
 
 **Why**: this bot's entire design assumes FCFS; a commissioner
 installing it on a non-FCFS league by mistake might prefer a hard
 refusal over a working-but-meaningless order.
 
-**What it'd take**: trivial — same pattern as #14, applied to the other
+**What it'd take**: trivial — same pattern as #15, applied to the other
 existing warning.
 
 ---
@@ -245,12 +279,14 @@ existing warning.
 Purely a read of "value vs. effort" from the descriptions above, not a
 recommendation to build any of it now: **#1 (processing window)** is
 clearly the flagship idea — it's the one you came in with, it's high
-value, and it's a moderate, well-scoped lift. **#9 (timezone)** is
-small effort and quietly important since #1 depends on it making
-sense. **#10 (shadow mode)** and **#6/#7 (notification toggles)** are
-each small, standalone, and reasonable next additions whenever a
-"v2 settings" pass happens. The rest are lower urgency, listed for
-completeness.
+value, and it's a moderate, well-scoped lift. **#6 (auto-computed
+starting order)** is the other standout — it directly replaces a real,
+error-prone manual step with something the Worker already has all the
+pieces to do itself. **#10 (timezone)** is small effort and quietly
+important since #1 depends on it making sense. **#11 (shadow mode)**
+and **#7/#8 (notification toggles)** are each small, standalone, and
+reasonable next additions whenever a "v2 settings" pass happens. The
+rest are lower urgency, listed for completeness.
 
 See `FUTURE_WORK.md` for items already explicitly decided/tabled — this
 file is upstream of that one: ideas that haven't been decided on yet at

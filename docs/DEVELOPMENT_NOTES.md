@@ -215,6 +215,20 @@ unverified if you encounter it.
   binding, the cron schedule) would get silently reverted on the next
   push. README calls this out explicitly; keep that framing intact if
   this section changes again.
+- **KV namespace: no `id =` in `wrangler.toml`, relies on Cloudflare's
+  automatic resource provisioning** (2026-08-19, in place of an
+  earlier manual "go create a KV namespace, copy its ID" Quick Start
+  step). Confirmed real via Cloudflare's own docs
+  (developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning),
+  currently **Beta**: deploying a `[[kv_namespaces]]` binding with no
+  `id` creates the namespace automatically. Deliberately kept out of
+  the README's Quick Start — that's meant to stay a simple, linear
+  set of steps, not a place for Beta-feature caveats or manual-fallback
+  instructions. If this ever stops working reliably (Beta features can
+  change), the fallback is: create a KV namespace manually under
+  Storage & Databases → Workers KV → Create Instance, add its `id`
+  back into `wrangler.toml`'s `[[kv_namespaces]]` block, and redeploy
+  — the same shape as the step this replaced.
 
 ## File map
 
@@ -227,9 +241,10 @@ unverified if you encounter it.
   subfolder (a leftover name from this project's original feasibility
   test, never a deliberate structure) would have needed a "Root
   directory" override in Cloudflare's build settings to work at all.
-- `home-page-status-snippet.html` — optional, separate feature (a
-  client-side JS widget, different mechanism than the ambient-status
-  Home Page Message — see README for the distinction).
+- `home-page-status-snippet.html` — optional widget feature, currently
+  dormant/undocumented in README (see `FUTURE_WORK.md`) — a
+  client-side JS widget, a different mechanism than the ambient-status
+  Home Page Message (also currently dormant).
 - `LICENSE` — MIT.
 - `docs/` — this file and its siblings.
 
@@ -254,15 +269,16 @@ unverified if you encounter it.
   that sharing wasn't a clean fit — see the comment above
   `authenticateAsCommissioner()` in the code). Extend whichever of the
   two you're actually touching rather than assuming they're one thing.
-- **`home-page-status-snippet.html` exists in two places** — the file
-  itself, and byte-for-byte inline inside README.md's "Optional: status
-  widget" section (so a commissioner can paste directly from the README
-  with no separate file to find — Travis's explicit ask, 2026-08-19,
-  after a prior pass updated the file but not the README's copy of it).
-  If you edit the file, regenerate the README's copy from it
-  mechanically (read the file, replace the contents of the fenced
-  \`\`\`html block in that section, verify the two are identical
-  character-for-character) rather than hand-editing or retyping the
-  README's copy — this is the actual failure mode that made this note
-  necessary in the first place. Do this for *any* edit, including a
-  one-line comment change.
+- **`home-page-status-snippet.html` is currently dormant, not deleted.**
+  It briefly existed byte-for-byte inline inside README.md's "Optional:
+  status widget" section too (so a commissioner could paste directly
+  from the README with no separate file to find), but that section —
+  along with the ambient status message feature — was pulled from
+  README on 2026-08-19 to keep the setup guide focused on the required
+  core automation while Travis gets other commissioners testing it.
+  See `FUTURE_WORK.md` for what would need to happen to bring it back
+  (mechanically regenerate the README copy from the file, verify
+  character-for-character, the same discipline that applied when it
+  was last embedded — don't hand-retype it). `worker.js` was not
+  touched by this deferral; the ambient status endpoint and its
+  supporting functions are still there, just undocumented for now.

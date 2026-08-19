@@ -42,6 +42,85 @@ items).
   to a full documented path if enough people ask for it. Cloudflare's
   own "Deploy to Cloudflare" button remains rejected for this — it
   still requires a GitHub or GitLab account on the receiving end.
+- **GitHub "fill in these values" form on template creation — checked,
+  doesn't exist (2026-08-19).** Travis's real request: have "Use this
+  template" prompt for `MFL_LEAGUE_URL` etc. right at repo-creation
+  time instead of a separate later edit. Confirmed via GitHub's own
+  community discussions: this has been an open feature request for
+  years (multiple threads asking for exactly this), never built
+  natively. Third-party workarounds exist (GitHub Actions-based
+  templatizers that rewrite placeholder text on first push), but that
+  means trusting and understanding a GitHub Action running on a brand
+  new repo before the commissioner has done anything else — real added
+  complexity against this project's "one dependency" goal. Revisit
+  only if GitHub ships native template variables; not worth building
+  a workaround for in the meantime.
+- **Better UX for `DIAG_TOKEN` than "make up a random string yourself."**
+  Travis's instinct (2026-08-19): the current "mash the keyboard, write
+  it down" step is the weakest, most manual-feeling part of an
+  otherwise fully guided setup, even though every specific alternative
+  considered so far (obscure URL paths, checking the `Referer` header,
+  reusing MFL credentials directly) turned out to be either weaker
+  security or a real downgrade — see README's explanation. Candidate
+  directions worth real research, none committed to yet:
+  - **Worker generates its own token on first run and displays it
+    once.** Instead of asking the commissioner to invent a string,
+    have the Worker check `STATUS_KV` for an existing token on first
+    request, generate one with `crypto.randomUUID()` if missing, store
+    it there, and show it back once via a dedicated bootstrap
+    endpoint/message ("here's your token, save it, this won't be shown
+    again"). Removes the "what should I type" step entirely and is
+    arguably *more* secure than a hand-typed string, at the cost of
+    moving the check from a Cloudflare Secret to a KV read (worth
+    thinking through whether that's an acceptable security-boundary
+    change — both still require Cloudflare account access to read).
+  - **Cloudflare Access in front of the manual endpoints**, using the
+    commissioner's own already-logged-in Cloudflare account as the
+    auth instead of a new invented secret. Genuinely promising if it
+    works, but real open questions before committing to it: does
+    Cloudflare Access gate a plain `workers.dev` subdomain without a
+    custom domain, and is it available on the free tier this whole
+    project otherwise stays within. Needs real research, not assumed.
+  - ~~If the widget ends up hosted on Cloudflare, it could generate a
+    strong random token client-side.~~ Retired as an idea (2026-08-19)
+    — see the widget-hosting item below; hosting the widget on
+    Cloudflare turned out to be the wrong direction on its own merits,
+    so this doesn't apply either.
+- **Optional homepage widget + ambient status message — deferred to
+  focus on getting the core bot live-tested (2026-08-19).** Both
+  features are fully built and working in the code — `worker.js` was
+  not touched, only README's documentation of them was removed, to
+  keep the setup guide focused on the required core automation while
+  Travis gets other commissioners testing it. Reviving either is just
+  restoring the relevant README section(s); nothing needs rebuilding.
+  Two real findings from this pass that should inform any revival,
+  so they're not re-litigated from scratch:
+  - **Do not host the widget externally on Cloudflare with a short
+    `<script src>` snippet** — this was seriously proposed and
+    researched this same session, then reversed after checking how
+    real, established MFL community script authors (Habman's live,
+    donation-supported scripts; a second active contributor at
+    mflscripts.com) actually do this. Both use one large, fully
+    self-contained pasted `<script>` block with inline `var` config at
+    the top — never an externally hosted file. The likely reason:
+    self-containment means a league's widget keeps working forever
+    even if the script author's own server or domain ever goes away;
+    externally hosting it would make every league's widget depend on
+    that one server staying up indefinitely. Worth adopting regardless
+    of this decision: Habman's scripts guard every config var with
+    `if (x == undefined) var x = default;` right after the "don't edit
+    below this line" marker, so an updated script version with a new
+    setting doesn't break someone's older pasted copy. Our widget
+    doesn't currently do this.
+  - **The widget's placement instructions had a real, live bug**,
+    found and fixed this same pass: they said to mark it a "Header or
+    Footer message," which — per this project's own earlier
+    live-confirmed finding for the ambient status feature — actually
+    injects content into every page on the site, not just the
+    homepage. The fix (already applied in `home-page-status-snippet.html`,
+    preserved even though the section isn't currently in README): use
+    the same module/tab placement the ambient status message already
+    correctly uses, not header/footer.
 
 ## Explicitly decided against, for now
 

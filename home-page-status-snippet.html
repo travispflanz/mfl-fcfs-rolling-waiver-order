@@ -1,10 +1,13 @@
 <!--
-  SYNC NOTE: this file is mirrored byte-for-byte inside README.md's
-  "Optional: status widget" section (an inline copy so a commissioner
-  can paste directly from the README, no separate file needed). If you
-  edit this file, copy the exact same change into README.md's copy —
-  do not paraphrase or retype it there, and diff the two before
-  committing. This file is the reference/backup copy of the two.
+  STATUS: this feature is currently deferred, not part of the active
+  README/Quick Start — see docs/FUTURE_WORK.md ("Optional homepage
+  widget + ambient status message — deferred..."). This file itself is
+  untouched and fully working; only its README documentation was
+  removed, to keep the setup guide focused on the required core
+  automation while it's getting live-tested with other commissioners.
+  If this section ever comes back to the README, restore it as an
+  inline byte-for-byte copy the way it worked before (see git history
+  around 2026-08-19), not a hand-retyped paraphrase.
 
   MFL WAIVER BOT WIDGET — optional, for the whole league, not just the
   commissioner. This is NOT the automation trigger — the actual waiver
@@ -56,12 +59,21 @@
   an acceptable amount of exposure — don't extend this snippet to hold
   anything sensitive.
 
-  TO USE: paste this into a league Home Page Message (Commissioner Setup
-  → Appearance Setup → Home Page Modules and Tabs Setup), marked as a
-  Header or Footer message. Turn off "Advanced Editor" under Appearance
-  Setup → Reports and Security Settings first, or MFL will mangle the
-  raw HTML/script when you save it. Then edit the config block just
-  below: your WORKER_STATUS_URL (your own deployed Worker's /status
+  TO USE: turn off "Advanced Editor" under Appearance Setup → Reports
+  and Security Settings first, or MFL will mangle the raw HTML/script
+  when you save it. Then go to Appearance Setup → Home Page Modules
+  and Tabs Setup, open any Home Page Message slot that isn't already
+  in use, and paste this snippet in as its content. On that same edit
+  page, make sure the header and footer display options are both left
+  off/"No" — confirmed live, turning either on injects this into every
+  page on the site, not just your homepage, a real MFL behavior and a
+  mistake this project already made once with a different feature (see
+  LESSONS_LEARNED.md). Save, then place that same "Home Page Message
+  #N" module onto your homepage's Main tab wherever you'd like it — MFL
+  has no shortcut for this part; it's a one-time manual drag into
+  position, the identical placement step the ambient status option
+  below uses. Then edit the config block just below: your
+  WORKER_STATUS_URL (your own deployed Worker's /status
   endpoint — only used for the commissioner-only "last run" line, and
   it's a public read with no token, so it's safe to leave visible in
   page source), your CHECK_INTERVAL_MINUTES (must match your Worker's

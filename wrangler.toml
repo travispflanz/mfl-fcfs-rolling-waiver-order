@@ -35,12 +35,14 @@ MFL_LEAGUE_URL = "https://www44.myfantasyleague.com/2026/home/19186"
 # needing any second third-party account (GitHub, email, webhook, ...)
 # beyond the Cloudflare account already required for the Worker itself.
 #
-# >>> The id below is this repo's own original KV namespace — it only
-# >>> exists in the original author's Cloudflare account. REPLACE IT
-# >>> with your own namespace's ID (Quick Start step 4).
+# Deliberately no `id =` line here — Cloudflare's automatic resource
+# provisioning (Beta, confirmed real: developers.cloudflare.com/workers
+# /wrangler/configuration/#automatic-provisioning) creates this KV
+# namespace for you on first deploy, no manual step needed. If you're
+# using the CLI instead of the GitHub-connected flow, `wrangler deploy`
+# also writes the generated id back into this file automatically.
 [[kv_namespaces]]
 binding = "STATUS_KV"
-id = "1436a1972308462b84076f5096b1572e"
 
 # Full cutover (2026-08-18): Cloudflare is now the ONLY thing running
 # this automatically — the old GitHub Actions workflow file, its
