@@ -8,13 +8,20 @@
  * tree entirely (recoverable from git history if ever needed — see
  * docs/DEVELOPMENT_NOTES.md). scheduled() below (see wrangler.toml's
  * [triggers]) is what actually keeps the league's waiver order
- * current now, every 5 minutes, unattended.
+ * current now, every 2 minutes, unattended — the reliable practical
+ * maximum given Workers KV's Free-tier write cap (2026-08-19; see
+ * docs/DEVELOPMENT_NOTES.md for the numbers), run essentially
+ * continuously specifically so the order is always accurate close to
+ * both of MFL's own "Process Waivers" and "Put All Players on
+ * Waivers" League Calendar moments, not just on a coarser fixed
+ * interval that happens to land nearby.
  *
- * Login → Become Commissioner → settings-compatibility check → read
- * current order (cross-checked against an independent source) →
- * compute target order from real transaction history → submit (only
- * when something actually changed) → verify on the homepage → record
- * status.
+ * Login → Become Commissioner → settings-compatibility check
+ * (including a best-effort, informational-only League Calendar check
+ * — see getLeagueCalendarEvents()) → read current order (cross-checked
+ * against an independent source) → compute target order from real
+ * transaction history → submit (only when something actually changed)
+ * → verify on the homepage → record status.
  *
  * HTTP endpoints — all gated by DIAG_TOKEN except /status:
  *
@@ -44,7 +51,7 @@
  * own hard cap, highest-numbered first) and writes a small status
  * table into it. scheduled() refreshes it automatically, at most once
  * per HOUR (Travis's explicit choice — separate from and much less
- * frequent than the 5-minute waiver-order check; see
+ * frequent than the 2-minute waiver-order check; see
  * shouldRefreshStatusSlot()); /claim-status-slot remains available for
  * an immediate manual refresh any time. Writing content does NOT make
  * it visible on its own — MFL has no API for editing the module/tab
@@ -113,7 +120,7 @@ export default {
         }
 
         // Ambient status slot (optional feature): refresh at most once
-        // per hour, not every 5-minute tick — Travis's explicit choice.
+        // per hour, not every 2-minute tick — Travis's explicit choice.
         // Uses its own authenticated session (runPipeline's isn't
         // exposed to the caller) — one extra login/hour, negligible
         // cost. Best-effort: must never affect the real waiver-order
@@ -364,6 +371,20 @@ async function runPipeline(env, { dryRun, force, includeVerify }) {
     if (nonNone.length) problems.push(`Sort Criteria not all None: ${nonNone.join(',')}`);
     if (problems.length) l(`⚠ Settings warning (non-blocking): ${problems.join('; ')}`);
     else l('Waiver settings compatible (SAME/REVERSE + all Sort Criteria None).');
+
+    // ── Calendar check (Process Waivers event) — informational only,
+    // never affects the real pipeline. See getLeagueCalendarEvents()
+    // for why this is deliberately loose/best-effort.
+    try {
+      const calendar = await getLeagueCalendarEvents(jar, BASE, LEAGUE);
+      report.calendarCheck = calendar.summary;
+      if (!calendar.summary.hasProcessWaiversEvent) {
+        l('⚠ No "Process Waivers" League Calendar event found (best-effort check — see README). ' +
+          'Without one, locked players never unlock back to FCFS; double-check League Calendar Setup.');
+      }
+    } catch (err) {
+      l(`Note: could not read League Calendar (non-fatal, informational only): ${err.message}`);
+    }
 
     // ── Franchise names + independent order cross-check (hardening
     // ideas #1 and #2) — MFL's own export?TYPE=league is public,
@@ -731,6 +752,48 @@ async function getLeagueExportData(jar, BASE, LEAGUE) {
   return { namesByFid, sortOrderByFid, currentWaiverType, commishUsername, commissionerFranchiseId };
 }
 
+// MFL's official calendar export — confirmed real via MFL's own public
+// API docs (api.myfantasyleague.com/{year}/api_info, checked
+// 2026-08-19): export?TYPE=calendar&L={league}&JSON=1, "Returns a
+// summary of the league calendar events," access restricted to league
+// owners (same tier this bot already authenticates at, so no new
+// capability needed). What's NOT yet confirmed: the exact JSON field
+// names for an event's type/name — that's inferred from MFL's League
+// Calendar Setup Help Center page's event-type list ("Process
+// Waivers", "Put All Players on Waivers", etc.), not observed against
+// real output. Parsing below is deliberately loose — a case-
+// insensitive substring search across each event's own JSON, not a
+// specific field path — specifically so a wrong guess about the exact
+// schema fails soft (event just doesn't match, no warning fires)
+// instead of throwing. This only ever feeds an informational warning
+// (see runPipeline()); it can never affect the real waiver-order
+// pipeline even if this parsing is completely wrong. Tighten to exact
+// field paths once live-verified against a real league's output.
+async function getLeagueCalendarEvents(jar, BASE, LEAGUE) {
+  const { finalText } = await followWithCookies(`${BASE}/export?TYPE=calendar&L=${LEAGUE}&JSON=1`, { method: 'GET' }, jar);
+  const data = JSON.parse(finalText);
+  const eventsRaw = data?.calendar?.event ?? data?.calendar?.events ?? data?.leagueCalendar?.event ?? [];
+  const list = Array.isArray(eventsRaw) ? eventsRaw : eventsRaw ? [eventsRaw] : [];
+
+  const eventMentions = (ev, needles) => {
+    const haystack = JSON.stringify(ev).toLowerCase();
+    return needles.every((n) => haystack.includes(n));
+  };
+
+  const processWaiversEvents = list.filter((ev) => eventMentions(ev, ['process', 'waiver']));
+  const putAllOnWaiversEvents = list.filter((ev) => eventMentions(ev, ['put', 'waiver']));
+
+  return {
+    raw: list,
+    summary: {
+      hasProcessWaiversEvent: processWaiversEvents.length > 0,
+      hasPutAllOnWaiversEvent: putAllOnWaiversEvents.length > 0,
+      processWaiversEvents,
+      putAllOnWaiversEvents,
+    },
+  };
+}
+
 // Hardening idea #4: structural sanity checks, fail loud instead of
 // silently proceeding on data that doesn't look right. This is what
 // would have caught the franchise-name bug immediately instead of it
@@ -948,7 +1011,7 @@ async function claimOrRefreshStatusSlotSafely(env, jar, BASE, LEAGUE, report) {
 }
 
 // Travis's explicit choice: refresh the ambient status once per hour,
-// not every 5-minute cron tick — no point re-authenticating and
+// not every 2-minute cron tick — no point re-authenticating and
 // re-writing a page element that frequently for something that's just
 // an "is this thing alive" indicator, not real-time data.
 const STATUS_SLOT_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
@@ -978,8 +1041,8 @@ function findWaiverOrderPlacement(appearanceJson) {
 }
 
 // Only alert on a NEW failure (previous run was ok), not on every tick
-// of an ongoing outage — a 5-minute cron would otherwise spam the
-// message board and the commissioner's inbox every 5 minutes for as
+// of an ongoing outage — a 2-minute cron would otherwise spam the
+// message board and the commissioner's inbox every 2 minutes for as
 // long as something stays broken. If KV is unavailable or empty,
 // default to alerting rather than staying silent.
 async function shouldAlert(env) {

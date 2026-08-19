@@ -12,7 +12,7 @@ items).
 ## Open, not yet decided
 
 - **Event-driven trigger via MFL's own email notifications, instead of
-  5-minute polling** (researched 2026-08-19, prompted by Travis
+  polling** (researched 2026-08-19, prompted by Travis
   questioning why polling is needed at all when MFL already emails
   owners on transactions — a fair challenge to the README's existing
   "confirmed, no better option" line, which turned out to be about the
@@ -33,8 +33,9 @@ items).
   Combined, the concept: point that MFL notification at a
   Cloudflare-routed address, parse the incoming email in `email()`,
   and trigger the real waiver-order pipeline only when something
-  actually happened — `scheduled()`'s 5-minute tick becomes a rare
-  fallback safety net instead of the primary trigger.
+  actually happened — `scheduled()`'s regular tick (now every 2
+  minutes; see "Calendar-aware checking is now the default" below)
+  becomes a rare fallback safety net instead of the primary trigger.
   **Re-confirmed while researching this**: MFL's documented Import API
   has no webhook/callback registration mechanism of any kind — this
   project already checked the full Import + Misc sections end to end
@@ -178,6 +179,25 @@ items).
 
 ## Explicitly decided against, for now
 
+- **Calendar-timestamp precision gating for "Process Waivers"/"Put All
+  Players on Waivers"** (researched and designed 2026-08-19, then
+  superseded during the same session — full trail in
+  `DEVELOPMENT_NOTES.md`'s "Key design decisions"). What *was* built
+  from this research: the cron interval moved from 5 to 2 minutes (the
+  real reliable ceiling, given Workers KV's Free-tier write cap), and
+  a best-effort, informational-only warning if no "Process Waivers"
+  League Calendar event is configured (`getLeagueCalendarEvents()`,
+  `report.calendarCheck`). What was designed but *not* built: reading
+  exact calendar timestamps and gating a dedicated check specifically
+  before each "Process Waivers" event and after each "Put All Players
+  on Waivers" event. Once the cron interval was set to its 2-minute
+  ceiling, that gating logic became functionally redundant to build —
+  the pipeline already runs unconditionally on every tick regardless
+  of calendar state, already landing within 2 minutes of both moments
+  by construction. Revisit only if the cron interval ever has to drop
+  below 2-minute reliability (KV limits changing, writes becoming
+  conditional instead of every tick, etc.) — until then, the simpler
+  always-on approach already delivers the same practical guarantee.
 - **Season auto-detection.** The original Playwright-based script
   probed forward a year at a time and self-corrected `MFL_LEAGUE_URL`
   automatically each season. Not ported to the Cloudflare Worker —
@@ -185,9 +205,9 @@ items).
   porting if the manual step turns out more annoying in practice than
   it sounds; it's a small, self-contained function if picked back up.
 - **Ambient status refresh frequency.** Explicit decision (2026-08-19):
-  once per hour, not every 5-minute cron tick and not only on
-  failures. Revisit if hourly turns out to be too slow or too frequent
-  in practice.
+  once per hour, not every cron tick (now every 2 minutes) and not
+  only on failures. Revisit if hourly turns out to be too slow or too
+  frequent in practice.
 - **Recovery notifications.** The failure-alerting system posts once
   when a run transitions from OK to failing, and stays quiet on
   repeated failures. There's no equivalent "it's working again" alert

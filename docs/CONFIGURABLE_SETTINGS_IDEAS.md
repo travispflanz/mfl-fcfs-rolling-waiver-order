@@ -16,7 +16,7 @@ control," more kept surfacing than expected.
 ### 1. Configurable processing window (your own example)
 
 **What**: instead of reordering the instant a transaction happens
-(current behavior — checks every 5 minutes, acts immediately when
+(current behavior — checks every 2 minutes, acts immediately when
 something changed), let a commissioner choose a **scheduled batch
 mode** instead — e.g. "only actually process/update once a week, at a
 specific day and time" (your example: 1am Tuesday, right after Monday
@@ -31,7 +31,7 @@ than react in real time.
 batch," and if weekly, a day-of-week + time picker (or just a config
 value like `TUESDAY 01:00 America/Chicago`).
 
-**What it'd take**: the Cron Trigger can keep firing every 5 minutes
+**What it'd take**: the Cron Trigger can keep firing every 2 minutes
 (cheap, no downside) — the code would just check "is now inside the
 configured processing window?" before actually submitting, the same
 shape as this project's own retired "only run at 2am Central" guard
@@ -100,7 +100,7 @@ This would let the Worker do it instead: a one-time (or on-demand)
 `INITIAL_ORDER_STRATEGY` setting (`reverse_draft` / `same_as_draft` /
 `random` / `leave_as_is`), computed automatically and submitted
 through the exact same WAIVORD write path the bot already uses every
-5 minutes.
+2 minutes.
 
 **Why**: this genuinely matters, not a nice-to-have — waiver spot #1 is
 a real, meaningful competitive advantage over spot #12 from day one,

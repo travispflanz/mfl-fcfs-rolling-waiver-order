@@ -22,7 +22,7 @@ technical/historical reference.
 
 `worker.js` is the entire automation: one `fetch()`
 handler (manual endpoints, all token-gated except `/status`) and one
-`scheduled()` handler (the real production trigger, every 5 minutes
+`scheduled()` handler (the real production trigger, every 2 minutes
 per `wrangler.toml`). Everything talks to MFL over plain HTTP — no
 browser, no Playwright (that existed once; fully retired, see below).
 State lives in one Cloudflare KV namespace (`STATUS_KV`): last-run
@@ -98,6 +98,26 @@ unverified if you encounter it.
   order) and dozens of others (`STANDINGS`, `TRANSACTIONS`, etc.) —
   useful if a future feature needs to read/display something publicly
   without authentication.
+- `export?TYPE=calendar&L={league}&JSON=1` — official, documented
+  (confirmed via `api.myfantasyleague.com`'s own public API test
+  page, 2026-08-19: "Returns a summary of the league calendar
+  events"), league-owner access only (same tier this bot already
+  authenticates at everywhere else). **Lower confidence tier than the
+  exports above**: the endpoint's existence and access level are
+  confirmed from MFL's own docs, but the exact JSON shape (field names
+  for an event's type/start time) has not been observed against real
+  output — no live league was available to test against this session.
+  `getLeagueCalendarEvents()` in `worker.js` parses this deliberately
+  loosely (case-insensitive substring match across each event's own
+  JSON, not a specific field path) specifically so a wrong guess about
+  the schema fails soft — no match found, no warning shown — rather
+  than throwing. It only ever feeds one informational warning (see
+  "Key design decisions" below); nothing it does can affect the real
+  waiver-order pipeline. **Tighten to exact field paths once live-
+  verified** — easiest path: hit `/diag` on a real deployed Worker and
+  inspect `report.calendarCheck.processWaiversEvents`/
+  `putAllOnWaiversEvents` (the raw matched event objects) to see the
+  real shape, then narrow the substring match to real field paths.
 
 ### Writing data
 
@@ -163,9 +183,45 @@ unverified if you encounter it.
   Playwright/GitHub-Actions script, its workflow file, and
   `package.json` were deleted from the working tree (fully recoverable
   via git history — nothing destroyed, just superseded).
-- **Cron interval: 5 minutes**, not GitHub Actions' old hourly
-  compromise — that compromise existed specifically because of GitHub
-  Actions' per-minute billing, which Cloudflare's free tier removes.
+- **Cron interval: 2 minutes** (raised from 5, 2026-08-19, Travis's
+  explicit direction to run "essentially always on" — itself already a
+  revision of GitHub Actions' old hourly compromise, which existed
+  specifically because of GitHub Actions' per-minute billing that
+  Cloudflare's free tier removes). **Checked Cloudflare's real limits
+  before picking the number, not guessed**: Cloudflare's Cron Trigger
+  syntax has no sub-minute field, so 1-minute is the fastest cron
+  syntax itself allows — but this bot's own `recordStatus()` writes to
+  `STATUS_KV` unconditionally on every single scheduled run, and
+  Workers KV's Free-plan limit is **1,000 writes/day**
+  (`developers.cloudflare.com/workers/platform/pricing/`). 1-minute
+  intervals would mean 1,440 writes/day, over the cap; 2-minute
+  intervals mean 720/day, leaving real headroom for the bot's other
+  occasional KV writes (ambient status refresh, manual diagnostic
+  runs). **2 minutes is therefore the genuine reliable ceiling**, not
+  an arbitrarily conservative round number — if `recordStatus()` is
+  ever changed to write conditionally instead of every tick, this
+  ceiling would need re-deriving, not just copied forward.
+- **Calendar-aware "Process Waivers" check — informational only, no
+  precision-timing gate built** (2026-08-19; full research trail in
+  `FUTURE_WORK.md`, since this started there before being decided).
+  The original idea (also from Travis) was dedicated before/after
+  triggers pinned to exact calendar timestamps: check shortly before
+  each "Process Waivers" event and shortly after each "Put All Players
+  on Waivers" event. Once the cron interval above was set to its real
+  2-minute ceiling, that precision-timing logic became functionally
+  redundant to build: the pipeline already runs unconditionally on
+  every single 2-minute tick regardless of calendar state, which
+  already lands within 2 minutes of both moments by construction —
+  adding timestamp-comparison logic on top wouldn't change *when* the
+  pipeline runs, only add a currently-pointless branch. What *was*
+  built instead: `getLeagueCalendarEvents()`, called every run,
+  purely to warn (never gate) if no "Process Waivers" event is
+  configured at all — see `report.calendarCheck` and the settings
+  table in `README.md`. If the cron interval ever has to drop below
+  2-minute reliability for some reason (KV limits change, a future
+  redesign makes writes cheaper, etc.), the original precision-gating
+  design is still the right one to revisit — it's recorded in full in
+  `FUTURE_WORK.md`, not lost by choosing the simpler path now.
 - **Fail loud on missing config**, not silent fallback to any specific
   league (`getLeagueConfig()`) — an earlier version of this silently
   defaulted to this project's own original league if `MFL_LEAGUE_URL`

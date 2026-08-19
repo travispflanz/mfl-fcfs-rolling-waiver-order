@@ -12,7 +12,7 @@ details.
 
 ```mermaid
 flowchart TD
-    A["Every 5 minutes:<br/>Cloudflare wakes the bot up"] --> B["Log in with the<br/>commissioner's MFL username/password"]
+    A["Every 2 minutes:<br/>Cloudflare wakes the bot up"] --> B["Log in with the<br/>commissioner's MFL username/password"]
     B --> C["Activate Commissioner Mode"]
     C --> D["Read the league's current<br/>waiver order, plus a one-time<br/>security token MFL issues fresh<br/>on every page load"]
     D --> E["Double-check that order against<br/>a second, independent MFL data source"]
@@ -54,23 +54,26 @@ submitting it the same way. Not a shortcut; the only actual door.
 ```mermaid
 flowchart TD
     M["Something failed above"] --> N{"Was this\nalready reported?"}
-    N -->|"Yes, still broken"| O["Stay quiet.\nDon't send the same\nalert every 5 minutes"]
-    N -->|"No, this is new"| P["Post to the league's\nMessage Board"]
-    P --> Q["Email the commissioner\ndirectly"]
+    N -->|"Yes, still broken"| O["Stay quiet.\nDon't send the same\nalert every 2 minutes"]
+    N -->|"No, this is new"| P{"Commissioner's chosen\nnotification method\n(default: email)"}
+    P -->|"email or both"| Q["Email the commissioner\ndirectly"]
+    P -->|"message_board or both"| R["Post to the league's\nMessage Board"]
 ```
 
-**Why both a Message Board post and an email**: different people check
-different things. A message board post is visible to the whole league
-context; an email lands somewhere a commissioner will actually see
-even if they're not on the site. Both use MFL's own real, official
-tools for exactly this — nothing gets sent through some other outside
-service.
+**Why this is a choice, defaulting to email**: different commissioners
+want different things — a message board post is visible to the whole
+league, while an email lands somewhere a commissioner will actually
+see even without visiting the site. Rather than assuming everyone
+wants both, `FAILURE_NOTIFICATION_METHOD` defaults to email only (a
+commissioner can pick Message Board, both, or neither instead) —
+whichever channel is chosen, it's still MFL's own real, official tools
+doing the sending, nothing routed through some other outside service.
 
 **Why it goes quiet after the first alert**: if something's broken, it
 tends to stay broken for a while (until a person fixes it) — the bot
-checks every 5 minutes, so without this, one problem would mean dozens
-of repeat alerts. It only speaks up again once things go back to
-working and then break a *second*, separate time.
+checks every 2 minutes, so without this, one problem would mean
+dozens of repeat alerts. It only speaks up again once things go back
+to working and then break a *second*, separate time.
 
 ## The optional homepage status box — and why placing it is a manual step
 

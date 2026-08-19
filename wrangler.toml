@@ -25,10 +25,15 @@ keep_vars = true
 [[kv_namespaces]]
 binding = "STATUS_KV"
 
-# The one other real setting: checks your league every 5 minutes by
-# default. Edit freely — any standard 5-field cron expression works.
-# This is the one setting that has to stay here rather than in the
-# dashboard — Cloudflare requires Cron Trigger schedules to be managed
-# through this file, full stop, no exceptions.
+# The one other real setting: checks your league every 2 minutes by
+# default — the reliable practical maximum, not an arbitrary choice.
+# 1 minute is allowed by cron syntax but would push Workers KV's
+# Free-tier write cap (1,000/day; this bot writes on every run) over
+# the edge; 2 minutes stays comfortably under it. See
+# docs/DEVELOPMENT_NOTES.md for the exact numbers. Edit freely — any
+# standard 5-field cron expression works. This is the one setting that
+# has to stay here rather than in the dashboard — Cloudflare requires
+# Cron Trigger schedules to be managed through this file, full stop,
+# no exceptions.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/2 * * * *"]

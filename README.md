@@ -19,7 +19,7 @@ else they want through FCFS in the meantime — which usually isn't
 what a league actually intends its waiver system to allow.
 
 This bot doesn't care which of the two types someone used — within a
-few minutes (by default) of *any* team picking up a player either way,
+couple minutes (by default) of *any* team picking up a player either way,
 that team drops to the bottom of the priority list. Whichever team
 has gone longest without a free-agent add (or has never made one)
 sits at the top. (MFL tracks other transaction types too — trades, IR
@@ -179,7 +179,7 @@ replaced — there's no "recover my token" option. Just add it again
 with a new value; nothing else needs to change, and the automatic
 schedule (which needs no token at all) isn't affected either way.
 
-Want full manual control instead of checking automatically every 5
+Want full manual control instead of checking automatically every 2
 minutes? That's already possible, no extra setup needed: set
 `crons = []` in `wrangler.toml`'s `[triggers]` block (edited on
 GitHub — see "Schedule" below for exactly how) and nothing runs on its
@@ -214,7 +214,7 @@ seems to be the problem).
 
 **Done.** Nothing else to turn on — the schedule already started the
 moment your Worker deployed in step 6; the first real check happens
-within 5 minutes (up to ~15 minutes the very first time, while the
+within 2 minutes (up to ~15 minutes the very first time, while the
 schedule finishes activating on Cloudflare's end). Check your league
 homepage's Waiver Wire Order widget afterward to confirm.
 
@@ -261,15 +261,16 @@ sign up for separately. By default that means a commissioner email;
 set `FAILURE_NOTIFICATION_METHOD` (step 7) if you'd rather have a
 Message Board post instead, both, or neither. It only sends that
 alert once per new failure, too, so one ongoing problem won't spam you
-every 5 minutes.
+every 2 minutes.
 
 ### Every MFL setting this bot cares about, in one place
 
 This bot never changes an MFL *setting* on your behalf — only the
 actual waiver order data itself. Every setting below is something you
-set once yourself, in Quick Start steps 1–3; this table just makes
-clear what's checked automatically afterward, and what happens if
-something drifts, so nothing here is a surprise later.
+set yourself in MFL — most during Quick Start steps 1–3, plus one more
+(the calendar check) covered separately under "Schedule" below — this
+table just makes clear what's checked automatically afterward, and
+what happens if something drifts, so nothing here is a surprise later.
 
 | Setting | Where | Step | Bot checks it | If it's wrong |
 |---|---|---|---|---|
@@ -277,6 +278,7 @@ something drifts, so nothing here is a surprise later.
 | Waiver Request Sort Order | `csetup?C=WAIVREQ` | 2 | Every run | Warns, still runs |
 | Waiver Sort Criteria (×6) | `csetup?C=WAIVREQ` | 2 | Every run | Warns, still runs |
 | Starting order | `csetup?C=WAIVORD` | 3 | Never (nothing to check — any value is a valid starting point) | N/A |
+| "Process Waivers" calendar event | LEAGUE menu → LEAGUE CALENDAR | see "Schedule" | Every run (best-effort — see note below) | Warns only |
 
 All of these are checked on *every single run*, before it does
 anything else. If any of them have drifted, the run logs a clear,
@@ -284,6 +286,13 @@ unmissable warning explaining that MFL might quietly override
 whatever this bot sets — but it still goes ahead and runs anyway,
 rather than refusing outright, in case you changed something on
 purpose for a reason of your own.
+
+The calendar check is a step below the others in confidence, worth
+saying plainly rather than glossing over: it's a real, documented MFL
+export, but purely informational — it can only add a warning, never
+change what the bot does — and its exact parsing hasn't been proven
+against a wide range of real leagues yet, so treat "no warning shown"
+as a good sign, not ironclad proof your calendar is set up correctly.
 
 ## Each new NFL season
 
@@ -297,28 +306,47 @@ waiting on a build — it's live as soon as you save.
 
 ## Schedule
 
-This checks your league **every 5 minutes**. MFL doesn't offer any
-kind of push notification for transactions (confirmed — there's
-genuinely no better option available), so polling is the only way to
-do this either way, and Cloudflare's free tier makes frequent checks
-effectively free — there's no cost reason to check any less often.
-Most of those checks won't actually change anything, either: a
+This checks your league **every 2 minutes** — essentially continuous,
+not an arbitrary number. MFL doesn't offer any kind of push
+notification for transactions (confirmed — there's genuinely no
+better option available), so polling is the only way to do this, and
+Cloudflare's free tier makes frequent checks effectively free. 2
+minutes specifically is the reliable practical maximum: 1 minute is
+allowed by Cloudflare's cron syntax but would push this bot's storage
+writes over its free storage tier's daily cap, while 2 minutes stays
+comfortably under it — see `docs/DEVELOPMENT_NOTES.md` if you want the
+exact numbers. Most checks won't actually change anything, either: a
 submission only happens when the computed order is genuinely
 different from what's already there, so an unchanged check is fast
 and cheap, milliseconds start to finish.
 
-Want it checking more or less often? This is the one setting in this
-whole project that still lives in `wrangler.toml` instead of the
+Running this often is specifically so the order stays accurate right
+around the two moments that matter most for a waiver league: shortly
+before MFL processes your league's pending waiver claims, and shortly
+after it locks all free agents onto waivers. Both are governed by
+events on your league's own **League Calendar** (found under the
+**LEAGUE** menu → **LEAGUE CALENDAR**, or **Setup → General League
+Setup → League Calendar Setup**) — specifically the **"Process
+Waivers"** and **"Put All Players on Waivers"** event types. If your
+league is already set up to use this bot's required Add/Drop system,
+you almost certainly already have a "Process Waivers" event defined —
+your waiver system has no other way to ever unlock a locked player
+without one, so it's rarely something you'd need to add from scratch.
+This bot checks for one on every run and logs a warning (never more
+than that) if it can't find one — see the settings table above.
+
+Want it checking more or less often anyway? This is the one setting in
+this whole project that still lives in `wrangler.toml` instead of the
 Cloudflare dashboard — Cloudflare requires Cron Trigger schedules to
 be managed that way, full stop, no dashboard-only equivalent survives
 a redeploy. To change it: on GitHub, open your repository, click
 `wrangler.toml`, click the pencil (✏️) icon in the top right to edit
 it, and change the `crons` line in the `[triggers]` block to a
-standard 5-field cron expression, like `*/5 * * * *` for every 5
-minutes or `*/15 * * * *` for every 15. Scroll down, leave it set to
-commit directly to your repository's default branch, and click
-**Commit changes** — Cloudflare redeploys automatically within a
-minute or two. See
+standard 5-field cron expression, like `*/2 * * * *` for every 2
+minutes (the default) or `*/15 * * * *` for every 15. Scroll down,
+leave it set to commit directly to your repository's default branch,
+and click **Commit changes** — Cloudflare redeploys automatically
+within a minute or two. See
 [Cloudflare's cron syntax reference](https://developers.cloudflare.com/workers/configuration/cron-triggers/#supported-cron-expressions)
 if you want the exact format rules.
 
@@ -403,7 +431,7 @@ template**) and, once connected to Cloudflare, the actual source of
 truth Cloudflare redeploys from on every commit — not merely incidental
 hosting. The automation *itself* still only ever talks to MFL and
 Cloudflare at runtime; GitHub is part of how the code gets there and
-stays configured, not part of what runs every 5 minutes.
+stays configured, not part of what runs every 2 minutes.
 
 If you'd rather not touch GitHub at all, even just to hold a copy of
 the code: Cloudflare's dashboard also lets you paste a Worker's code in
